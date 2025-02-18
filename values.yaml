@@ -1,0 +1,73 @@
+global: 
+  imagePullSecrets: []
+  nameOverride: ""
+  fullnameOverride: ""
+
+  chainId: centrifuge
+  nodeId: base
+
+  dbSecretName: centrifuge-api-dbConfig-secret
+  apiSecretName: centrifuge-api-apiConfig-secret
+  # ---
+  # apiVersion: v1
+  # kind: Secret
+  # metadata:
+  #   name: centrifuge-api-config-secret
+  # type: Opaque
+  # stringData:
+  #   DB_PASS: {{ .Files.Get ".env" | fromEnv "DB_PASS" }}
+  #   ONFINALITY_API_KEY: {{ .Files.Get ".env" | fromEnv "ONFINALITY_API_KEY" }}
+  #   ALCHEMY_API_KEY: {{ .Files.Get ".env" | fromEnv "ALCHEMY_API_KEY" }}
+  # ---
+
+node-cfg:
+  enabled: true
+  image:
+    repository: ghcr.io/centrifuge/api-cfg
+    pullPolicy: Always
+    tag: "2"
+
+node-eth:
+  enabled: true
+  image:
+    repository: ghcr.io/centrifuge/api-eth
+    pullPolicy: Always
+    tag: "2"
+  command:
+    - --timeout=3600
+    - --multi-chain
+    - --db-schema=app
+    - --disable-historical=true
+    - --workers=0
+    - --batch-size=30
+    - --skipTransactions=true
+    - --unsafe
+
+node-base:
+  enabled: false
+  image:
+    repository: ghcr.io/centrifuge/api-eth
+    pullPolicy: Always
+    tag: "2"
+  command:
+    - --timeout=3600
+    - --multi-chain
+    - --db-schema=app
+    - --disable-historical=true
+    - --workers=0
+    - --batch-size=30
+    - --skipTransactions=true
+    - --unsafe
+    
+query:
+  image:
+    tag: "latest"
+  ingress:
+    enabled: true
+    className: "traefik"
+    annotations:
+      kubernetes.io/tls-acme: "true"
+      traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    hosts: []
+    tls: []
