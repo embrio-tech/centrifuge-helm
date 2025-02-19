@@ -93,6 +93,8 @@ spec:
               secretKeyRef:
                   name: {{ .Values.global.dbSecretName }}
                   key: port
+            - name: NODE_ID
+              value: {{ .Values.nodeId }}
           {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
