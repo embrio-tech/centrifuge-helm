@@ -50,13 +50,3 @@ app.kubernetes.io/name: {{ include "centrifuge-api.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
-{{/*
-Create the name of the service account to use
-*/}}
-{{- define "centrifuge-api.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "centrifuge-api.fullname" .) .Values.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
-{{- end }}
-{{- end }}
