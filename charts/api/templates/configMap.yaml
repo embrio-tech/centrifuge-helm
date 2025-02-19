@@ -4,4 +4,3 @@ metadata:
   name: {{ include "centrifuge-api.fullname" . }}-config
 data:
   CHAIN_ID: {{ .Values.global.chainId }}
-  NODE_ID: {{ .Values.global.nodeId }}

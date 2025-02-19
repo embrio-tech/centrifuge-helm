@@ -1,8 +1,8 @@
-global:
-  imagePullSecrets: []
-  nameOverride: ""
-  fullnameOverride: ""
+nameOverride: ""
+fullnameOverride: ""
+imagePullSecrets: []
 
+global:
   chainId: centrifuge
 
   dbSecretName: centrifuge-api-dbConfig-secret
@@ -31,7 +31,7 @@ node-eth:
   nodeId: eth
   enabled: true
   image:
-    repository: ghcr.io/centrifuge/api-eth
+    repository: ghcr.io/centrifuge/api-evm
     pullPolicy: Always
     tag: "2"
   command:
@@ -48,7 +48,7 @@ node-base:
   nodeId: base
   enabled: false
   image:
-    repository: ghcr.io/centrifuge/api-eth
+    repository: ghcr.io/centrifuge/api-evm
     pullPolicy: Always
     tag: "2"
   command:
