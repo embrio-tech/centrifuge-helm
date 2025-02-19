@@ -4,7 +4,6 @@ global:
   fullnameOverride: ""
 
   chainId: centrifuge
-  nodeId: base
 
   dbSecretName: centrifuge-api-dbConfig-secret
   apiSecretName: centrifuge-api-apiConfig-secret
@@ -21,6 +20,7 @@ global:
   # ---
 
 node-cfg:
+  nodeId: centrifuge
   enabled: true
   image:
     repository: ghcr.io/centrifuge/api-cfg
@@ -28,6 +28,7 @@ node-cfg:
     tag: "2"
 
 node-eth:
+  nodeId: eth
   enabled: true
   image:
     repository: ghcr.io/centrifuge/api-eth
@@ -44,6 +45,7 @@ node-eth:
     - --unsafe
 
 node-base:
+  nodeId: base
   enabled: false
   image:
     repository: ghcr.io/centrifuge/api-eth
@@ -63,7 +65,7 @@ query:
   image:
     tag: "latest"
   ingress:
-    enabled: true
+    enabled: false
     className: "traefik"
     annotations:
       kubernetes.io/tls-acme: "true"
