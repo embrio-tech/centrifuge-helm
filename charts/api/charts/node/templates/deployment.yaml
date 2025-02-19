@@ -98,7 +98,7 @@ spec:
           {{- end }}
           envFrom:
             - configMapRef:
-                name: {{ include "centrifuge-api.fullname" . }}-config
+                name: {{ .Release.Name }}-config
             - secretRef:
                 name: {{ .Values.global.apiSecretName }}
           {{- with .Values.envFrom }}
