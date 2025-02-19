@@ -1,7 +1,8 @@
-global: 
+global:
   imagePullSecrets: []
   nameOverride: ""
   fullnameOverride: ""
+  parentFullname: "{{ .Release.Name }}"
 
   chainId: centrifuge
 
