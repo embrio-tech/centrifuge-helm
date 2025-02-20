@@ -28,17 +28,17 @@ dependencies:
     name: node
     version: 0.1.0
     repository: file://charts/node
-    condition: node-cfg.enabled
+    condition: nodeCfg.enabled
   - alias: node-eth
     name: node
     version: 0.1.0
     repository: file://charts/node
-    condition: node-eth.enabled
+    condition: nodeEth.enabled
   - alias: node-base
     name: node
     version: 0.1.0
     repository: file://charts/node
-    condition: node-base.enabled
+    condition: nodeBase.enabled
   - name: query
     version: 0.1.0
     repository: file://charts/query

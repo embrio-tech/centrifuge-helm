@@ -19,7 +19,7 @@ global:
   #   ALCHEMY_API_KEY: {{ .Files.Get ".env" | fromEnv "ALCHEMY_API_KEY" }}
   # ---
 
-node-cfg:
+nodeCfg:
   nodeId: centrifuge
   enabled: true
   image:
@@ -27,7 +27,7 @@ node-cfg:
     pullPolicy: Always
     tag: "2"
 
-node-eth:
+nodeEth:
   nodeId: eth
   enabled: true
   image:
@@ -44,7 +44,7 @@ node-eth:
     - --skipTransactions=true
     - --unsafe
 
-node-base:
+nodeBase:
   nodeId: base
   enabled: false
   image:
