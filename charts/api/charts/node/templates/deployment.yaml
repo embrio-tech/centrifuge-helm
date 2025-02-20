@@ -89,8 +89,8 @@ spec:
                   name: {{ .Values.global.dbSecretName }}
                   key: password
             - name: DB_PORT
-              value: {{ .Values.global.dbSecretName }}
-              secretKeyRef:
+              valueFrom:
+                secretKeyRef:
                   name: {{ .Values.global.dbSecretName }}
                   key: port
             - name: NODE_ID
