@@ -35,7 +35,7 @@ spec:
             - wait
             - --for=condition=complete
             - --timeout=300s
-            - job/{{ .Release.Name }}-force-clean
+            - "job/{{ .Release.Name }}-force-clean"
             - -n
             - {{ .Release.Namespace }}
       {{- end }}
