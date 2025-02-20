@@ -5,7 +5,11 @@ metadata:
   labels:
     {{- include "node.labels" . | nindent 4 }}
 spec:
-  replicas: {{- if and .Values.global.forceClean (not .Release.IsInstall) }}0{{- else }}1{{- end }}
+  {{- if and .Values.global.forceClean (not .Release.IsInstall) }}
+  replicas: 0
+  {{- else }}
+  replicas: 1
+  {{- end }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
