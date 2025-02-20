@@ -36,7 +36,9 @@ spec:
         - name: force-clean
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           args:
+            - /bin/run
             - force-clean
+            - -f="/app/project-${NODE_ID}.yaml"
       {{- end }}
       {{- with .Values.podSecurityContext }}
       securityContext:
