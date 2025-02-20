@@ -43,6 +43,37 @@ spec:
             {{- with .Values.command }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          env:
+            - name: DB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.dbSecretName }}
+                  key: dbname
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.dbSecretName }}
+                  key: host
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.dbSecretName }}
+                  key: user
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.dbSecretName }}
+                  key: password
+            - name: DB_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.dbSecretName }}
+                  key: port
+            - name: TZ
+              value: UTC
+          {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
