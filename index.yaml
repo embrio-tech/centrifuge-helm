@@ -3,6 +3,36 @@ entries:
   centrifuge-api:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2025-02-20T18:06:43.590549901Z"
+    dependencies:
+    - alias: nodeCfg
+      condition: nodeCfg.enabled
+      name: node
+      repository: file://charts/node
+      version: 0.1.0
+    - alias: nodeEth
+      condition: nodeEth.enabled
+      name: node
+      repository: file://charts/node
+      version: 0.1.0
+    - alias: nodeBase
+      condition: nodeBase.enabled
+      name: node
+      repository: file://charts/node
+      version: 0.1.0
+    - condition: query.enabled
+      name: query
+      repository: file://charts/query
+      version: 0.1.0
+    description: A Helm chart for Kubernetes
+    digest: 491a3e04b5866bec84c7183ca0d2b2137b80764ba682fc7cd33e63ff242e6d3f
+    name: centrifuge-api
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-0.1.30/centrifuge-api-0.1.30.tgz
+    version: 0.1.30
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2025-02-20T17:54:24.414067793Z"
     dependencies:
     - alias: node-cfg
@@ -841,4 +871,4 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-0.1.0/centrifuge-api-0.1.0.tgz
     version: 0.1.0
-generated: "2025-02-20T17:54:24.414292366Z"
+generated: "2025-02-20T18:06:43.59083977Z"
