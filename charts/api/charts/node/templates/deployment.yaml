@@ -5,7 +5,7 @@ metadata:
   labels:
     {{- include "node.labels" . | nindent 4 }}
 spec:
-  replicas: {{- if and .Values.global.forceClean (not .Release.IsInstall) }}0{{- else }}1{{- end }}
+  replicas: {{- if and .Values.global.forceClean (not .Release.IsInstall) }}"0"{{- else }}"1"{{- end }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -31,14 +31,13 @@ spec:
         - name: wait-for-force-clean
           image: bitnami/kubectl:latest
           command:
-            - /bin/sh
-            - -c
-            - >
-              echo "Waiting for force-clean job to complete...";
-              until kubectl get job {{ .Release.Name }}-force-clean -n {{ .Release.Namespace }} -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' | grep "True";
-              do sleep 5;
-              done;
-              echo "Force clean job completed successfully"
+            - kubectl
+            - wait
+            - --for=condition=complete
+            - --timeout=300s
+            - job/{{ .Release.Name }}-force-clean
+            - -n
+            - {{ .Release.Namespace }}
       {{- end }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
