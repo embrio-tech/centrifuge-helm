@@ -30,19 +30,6 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      {{- if .Values.global.forceClean }}
-      initContainers:
-        - name: wait-for-force-clean
-          image: bitnami/kubectl:latest
-          command:
-            - kubectl
-            - wait
-            - --for=condition=complete
-            - --timeout=300s
-            - job/{{ .Release.Name }}-force-clean
-            - -n
-            - {{ .Release.Namespace }}
-      {{- end }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
