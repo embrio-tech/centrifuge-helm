@@ -15,6 +15,7 @@ spec:
       labels:
         {{- include "centrifuge-api.selectorLabels" . | nindent 8 }}
     spec:
+      serviceAccountName: {{ .Release.Namespace }}
       restartPolicy: Never
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
