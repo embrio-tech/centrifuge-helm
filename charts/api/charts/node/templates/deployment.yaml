@@ -5,7 +5,7 @@ metadata:
   labels:
     {{- include "node.labels" . | nindent 4 }}
 spec:
-  replicas: {{- if and .Values.global.forceClean (not .Release.IsInstall) }}"0"{{- else }}"1"{{- end }}
+  replicas: {{- if and .Values.global.forceClean (not .Release.IsInstall) }}0{{- else }}1{{- end }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -35,7 +35,7 @@ spec:
             - wait
             - --for=condition=complete
             - --timeout=300s
-            - "job/{{ .Release.Name }}-force-clean"
+            - job/{{ .Release.Name }}-force-clean
             - -n
             - {{ .Release.Namespace }}
       {{- end }}
