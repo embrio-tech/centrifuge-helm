@@ -1,10 +1,10 @@
-{{- if .Values.forceClean }}
+{{- if .Values.global.forceClean }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "node.fullname" . }}-force-clean
+  name: {{ .Release.Name }}-force-clean
   labels:
-    {{- include "node.labels" . | nindent 4 }}
+    {{- include "centrifuge-api.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "-5"
@@ -13,7 +13,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "node.selectorLabels" . | nindent 8 }}
+        {{- include "centrifuge-api.selectorLabels" . | nindent 8 }}
     spec:
       restartPolicy: Never
       {{- with .Values.imagePullSecrets }}
@@ -52,8 +52,6 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.global.dbSecretName }}
                   key: port
-            - name: NODE_ID
-              value: {{ .Values.nodeId }}
           {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
