@@ -22,8 +22,8 @@ spec:
       {{- end }}
       containers:
         - name: force-clean
-          image: "{{ .Values.nodeCfg.image.repository }}:{{ .Values.nodeCfg.image.tag }}"
-          imagePullPolicy: {{ .Values.nodeCfg.image.pullPolicy }}
+          image: "{{ index .Values "node-cfg" "image" "repository" }}:{{ index .Values "node-cfg" "image" "tag" }}"
+          imagePullPolicy: {{ index .Values "node-cfg" "image" "pullPolicy" }}
           args:
             - force-clean
           env:

@@ -15,7 +15,7 @@ type: application
 # This is the chart version. This version number should be incremented each time you make changes
 # to the chart and its templates, including the app version.
 # Versions are expected to follow Semantic Versioning (https://semver.org/)
-version: 0.1.35
+version: 0.1.36
 
 # This is the version number of the application being deployed. This version number should be
 # incremented each time you make changes to the application. Versions are not expected to
@@ -24,21 +24,21 @@ version: 0.1.35
 appVersion: "1.16.0"
 
 dependencies:
-  - alias: nodeCfg
+  - alias: node-cfg
     name: node
     version: 0.1.0
     repository: file://charts/node
-    condition: nodeCfg.enabled
-  - alias: nodeEth
+    condition: node-cfg.enabled
+  - alias: node-eth
     name: node
     version: 0.1.0
     repository: file://charts/node
-    condition: nodeEth.enabled
-  - alias: nodeBase
+    condition: node-eth.enabled
+  - alias: node-base
     name: node
     version: 0.1.0
     repository: file://charts/node
-    condition: nodeBase.enabled
+    condition: node-base.enabled
   - name: query
     version: 0.1.0
     repository: file://charts/query
