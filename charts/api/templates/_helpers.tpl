@@ -50,3 +50,6 @@ app.kubernetes.io/name: {{ include "centrifuge-api.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
+
+
+

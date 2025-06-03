@@ -79,6 +79,8 @@ readinessProbe:
     path: /?query={snapshotPeriods{totalCount}}
     port: 3000
 
+env: {}
+
 # Additional volumes on the output Deployment definition.
 volumes: []
 # - name: foo

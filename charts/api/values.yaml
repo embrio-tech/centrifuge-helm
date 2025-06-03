@@ -4,7 +4,7 @@ imagePullSecrets: []
 
 global:
   chainId: centrifuge
-  dbSecretName: centrifuge-api-dbConfig-secret
+  #dbSecretName: centrifuge-api-dbConfig-secret
   apiSecretName: centrifuge-api-apiConfig-secret
   forceClean: false
   # ---
