@@ -73,3 +73,20 @@ query:
       nginx.ingress.kubernetes.io/ssl-redirect: "true"
     hosts: []
     tls: []
+
+postgres:
+  enabled: false
+  cluster:
+    instances: 1
+    storage:
+      size: 16Gi
+      storageClass: "ceph-perf3"
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+    affinity:
+      topologyKey: topology.cinder.csi.openstack.org/zone

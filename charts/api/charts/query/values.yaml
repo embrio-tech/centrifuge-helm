@@ -56,15 +56,10 @@ ingress:
   className: "traefik"
   annotations:
     kubernetes.io/tls-acme: "true"
-  hosts:
-    - host: chart-example.local
-      paths:
-        - path: /
-          pathType: ImplementationSpecific
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts: []
   tls: []
-#  - secretName: chart-example-tls
-#    hosts:
-#      - chart-example.local
 
 resources:
   requests:

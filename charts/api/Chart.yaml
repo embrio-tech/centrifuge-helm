@@ -43,4 +43,8 @@ dependencies:
     version: 0.1.0
     repository: file://charts/query
     condition: query.enabled
-
+  - alias: postgres
+    name: cluster
+    condition: postgres.enabled
+    version: 0.3.1
+    repository: https://cloudnative-pg.github.io/charts

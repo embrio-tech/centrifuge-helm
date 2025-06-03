@@ -1,0 +1,18 @@
+dependencies:
+- name: node
+  repository: file://charts/node
+  version: 0.1.0
+- name: node
+  repository: file://charts/node
+  version: 0.1.0
+- name: node
+  repository: file://charts/node
+  version: 0.1.0
+- name: query
+  repository: file://charts/query
+  version: 0.1.0
+- name: cluster
+  repository: https://cloudnative-pg.github.io/charts
+  version: 0.3.1
+digest: sha256:9e0a062fa39c4081f6ec2a9e09a302ea115c34c6ba1843a7bdd5f49fc9151b84
+generated: "2025-06-03T14:22:35.284867982+02:00"
