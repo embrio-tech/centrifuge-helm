@@ -1190,6 +1190,31 @@ entries:
   centrifuge-api-v3:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2025-08-27T14:39:33.985528097Z"
+    dependencies:
+    - alias: indexer
+      condition: indexer.enabled
+      name: indexer
+      repository: file://charts/indexer
+      version: 0.1.0
+    - condition: query.enabled
+      name: query
+      repository: file://charts/query
+      version: 0.1.0
+    - alias: postgres
+      condition: postgres.enabled
+      name: cluster
+      repository: https://cloudnative-pg.github.io/charts
+      version: 0.3.1
+    description: A Helm chart for Kubernetes
+    digest: 33ed405a2b63ca382e0578013922d8e373ebcd865e40bb75db6a398b02c1b6f1
+    name: centrifuge-api-v3
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v3-0.1.8/centrifuge-api-v3-0.1.8.tgz
+    version: 0.1.8
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2025-08-27T14:26:57.976038178Z"
     dependencies:
     - alias: indexer
@@ -1388,4 +1413,4 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v3-0.1.0/centrifuge-api-v3-0.1.0.tgz
     version: 0.1.0
-generated: "2025-08-27T14:26:57.976181566Z"
+generated: "2025-08-27T14:39:33.985655725Z"
