@@ -1,0 +1,65 @@
+nameOverride: ""
+fullnameOverride: ""
+imagePullSecrets: []
+
+global:
+  selectedNetworks: "1"
+  #dbSecretName: centrifuge-api-dbConfig-secret
+  apiSecretName: centrifuge-api-apiConfig-secret
+  forceClean: false
+  # ---
+  # apiVersion: v1
+  # kind: Secret
+  # metadata:
+  #   name: centrifuge-api-config-secret
+  # type: Opaque
+  # stringData:
+  #   ONFINALITY_API_KEY: {{ .Files.Get ".env" | fromEnv "ONFINALITY_API_KEY" }}
+  #   ALCHEMY_API_KEY: {{ .Files.Get ".env" | fromEnv "ALCHEMY_API_KEY" }}
+  # ---
+
+indexer:
+  enabled: true
+  image:
+    repository: ghcr.io/centrifuge/api-evm
+    pullPolicy: Always
+    tag: "2"
+  command:
+    - --timeout=3600
+    - --multi-chain
+    - --db-schema=app
+    - --disable-historical=true
+    - --workers=0
+    - --batch-size=30
+    - --skipTransactions=true
+    - --unsafe
+    
+query:
+  image:
+    tag: "latest"
+  ingress:
+    enabled: false
+    className: "traefik"
+    annotations:
+      kubernetes.io/tls-acme: "true"
+      traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    hosts: []
+    tls: []
+
+postgres:
+  enabled: false
+  cluster:
+    instances: 1
+    storage:
+      size: 16Gi
+      storageClass: "ceph-perf3"
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+    affinity:
+      topologyKey: topology.cinder.csi.openstack.org/zone
