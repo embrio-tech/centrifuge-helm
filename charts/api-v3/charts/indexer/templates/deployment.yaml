@@ -77,7 +77,7 @@ spec:
                   name: {{ .Values.global.dbSecretName | default (printf "%s-postgres-app" .Release.Name) }}
                   key: uri
             - name: DATABASE_SCHEMA
-              value: "{{ (dict values $.Values revision $.Release.Revision) | toYaml | sha256sum | trunc 8 }}"
+              value: "{{ $.Values | toYaml | sha256sum | trunc 8 }}"
           {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
