@@ -1151,4 +1151,66 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-0.1.0/centrifuge-api-0.1.0.tgz
     version: 0.1.0
-generated: "2025-06-03T13:29:59.802962592Z"
+  centrifuge-api-v2:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2025-08-27T11:36:49.873774336Z"
+    dependencies:
+    - alias: node-cfg
+      condition: node-cfg.enabled
+      name: node
+      repository: file://charts/node
+      version: 0.1.0
+    - alias: node-eth
+      condition: node-eth.enabled
+      name: node
+      repository: file://charts/node
+      version: 0.1.0
+    - alias: node-base
+      condition: node-base.enabled
+      name: node
+      repository: file://charts/node
+      version: 0.1.0
+    - condition: query.enabled
+      name: query
+      repository: file://charts/query
+      version: 0.1.0
+    - alias: postgres
+      condition: postgres.enabled
+      name: cluster
+      repository: https://cloudnative-pg.github.io/charts
+      version: 0.3.1
+    description: A Helm chart for Kubernetes
+    digest: 5d55eca4d4de153eee67ca512cb275a5478e2fc557f60510aa421e51b3c4d016
+    name: centrifuge-api-v2
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v2-0.2.1/centrifuge-api-v2-0.2.1.tgz
+    version: 0.2.1
+  centrifuge-api-v3:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2025-08-27T11:36:50.030134051Z"
+    dependencies:
+    - alias: indexer
+      condition: indexer.enabled
+      name: indexer
+      repository: file://charts/indexer
+      version: 0.1.0
+    - condition: query.enabled
+      name: query
+      repository: file://charts/query
+      version: 0.1.0
+    - alias: postgres
+      condition: postgres.enabled
+      name: cluster
+      repository: https://cloudnative-pg.github.io/charts
+      version: 0.3.1
+    description: A Helm chart for Kubernetes
+    digest: b7d9e0819100dbeb9835ae9b8463c879b735fc05870948366cd078fcc1ac79ab
+    name: centrifuge-api-v3
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v3-0.1.0/centrifuge-api-v3-0.1.0.tgz
+    version: 0.1.0
+generated: "2025-08-27T11:36:50.030235882Z"
