@@ -38,8 +38,6 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
-            - "--indexer=http://{{ .Release.Name }}-node-cfg:3000"
-            - "--name=app"
             {{- with .Values.command }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

@@ -19,13 +19,12 @@ global:
   # ---
 
 indexer:
-  enabled: true
+  enabled: false
   image:
-    repository: ghcr.io/centrifuge/api-evm
-    pullPolicy: Always
     tag: "latest"
     
 query:
+  enabled: false
   image:
     tag: "latest"
   ingress:
