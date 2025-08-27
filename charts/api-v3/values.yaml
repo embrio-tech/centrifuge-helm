@@ -5,13 +5,13 @@ imagePullSecrets: []
 global:
   selectedNetworks: "1"
   #dbSecretName: centrifuge-api-dbConfig-secret
-  apiSecretName: centrifuge-api-apiConfig-secret
+  apiSecretName: centrifuge-api-v3-apiConfig-secret
   forceClean: false
   # ---
   # apiVersion: v1
   # kind: Secret
   # metadata:
-  #   name: centrifuge-api-config-secret
+  #   name: centrifuge-api-v3-config-secret
   # type: Opaque
   # stringData:
   #   ONFINALITY_API_KEY: {{ .Files.Get ".env" | fromEnv "ONFINALITY_API_KEY" }}
@@ -23,16 +23,7 @@ indexer:
   image:
     repository: ghcr.io/centrifuge/api-evm
     pullPolicy: Always
-    tag: "2"
-  command:
-    - --timeout=3600
-    - --multi-chain
-    - --db-schema=app
-    - --disable-historical=true
-    - --workers=0
-    - --batch-size=30
-    - --skipTransactions=true
-    - --unsafe
+    tag: "latest"
     
 query:
   image:
