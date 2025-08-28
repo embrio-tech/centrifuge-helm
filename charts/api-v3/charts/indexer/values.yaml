@@ -21,7 +21,6 @@ nameOverride: ""
 fullnameOverride: ""
 
 command:
-  - start
   - --port
   - "8000"
 
