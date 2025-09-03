@@ -50,14 +50,6 @@ app.kubernetes.io/name: {{ include "centrifuge-api.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
-{{/*
-Create a hash of release values to ensure consistent hashing across subcharts.
-Uses Release for consistent hash.
-*/}}
-{{- define "centrifuge-api.releaseHash" -}}
-{{- .Release | toYaml | sha256sum | trunc 8 }}
-{{- end }}
-
 
 
 

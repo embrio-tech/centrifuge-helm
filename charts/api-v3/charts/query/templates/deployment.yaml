@@ -48,7 +48,7 @@ spec:
                   name: {{ .Values.global.dbSecretName | default (printf "%s-postgres-app" .Release.Name) }}
                   key: uri
             - name: DATABASE_SCHEMA
-              value: "{{ include "centrifuge-api.releaseHash" . }}"
+              value: "{{ .Values.image.tag }}"
           {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
