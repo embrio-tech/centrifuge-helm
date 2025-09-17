@@ -71,12 +71,14 @@ resources:
 
 # This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 livenessProbe:
+  timeoutSeconds: 10
   httpGet:
-    path: /?query={snapshotPeriods{totalCount}}
+    path: /?query=%7B_metadatas%20%7B%20nodes%20%7B%20chain%20lastProcessedHeight%20lastProcessedTimestamp%20%7D%20%7D%20%7D
     port: 3000
 readinessProbe:
+  timeoutSeconds: 10
   httpGet:
-    path: /?query={snapshotPeriods{totalCount}}
+    path: /?query=%7B_metadatas%20%7B%20nodes%20%7B%20chain%20lastProcessedHeight%20lastProcessedTimestamp%20%7D%20%7D%20%7D
     port: 3000
 
 env: {}
