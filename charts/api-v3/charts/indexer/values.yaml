@@ -108,3 +108,37 @@ affinity: {}
 
 env: []
 envFrom: []
+
+# CronJob configuration for regular deployment restarts
+cronjob:
+  enabled: false
+  # Schedule for the restart job (default: every 2 hours)
+  schedule: "0 */2 * * *"
+  # Image for the kubectl container
+  image:
+    repository: bitnami/kubectl
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  # Resource limits for the CronJob pod
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  # Timeout for rollout status check
+  rolloutTimeout: "5m"
+  # History limits
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  # Security context
+  securityContext: {}
+  # Node selector, affinity, and tolerations (inherit from main deployment if not specified)
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  # Environment variables
+  env: []
+  # Image pull secrets
+  imagePullSecrets: []

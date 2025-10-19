@@ -6,7 +6,6 @@ global:
   selectedNetworks: "1"
   #dbSecretName: centrifuge-api-dbConfig-secret
   apiSecretName: centrifuge-api-v3-apiConfig-secret
-  forceClean: false
   # ---
   # apiVersion: v1
   # kind: Secret
