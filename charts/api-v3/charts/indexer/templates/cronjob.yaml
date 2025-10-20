@@ -19,6 +19,7 @@ spec:
             {{- include "node.selectorLabels" . | nindent 12 }}
             app.kubernetes.io/component: cronjob
         spec:
+          serviceAccountName: {{ .Release.Namespace }}
           {{- with .Values.cronjob.imagePullSecrets }}
           imagePullSecrets:
             {{- toYaml . | nindent 12 }}
