@@ -130,8 +130,8 @@ cronjob:
   # Timeout for rollout status check
   rolloutTimeout: "5m"
   # History limits
-  successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 1
+  successfulJobsHistoryLimit: 0
+  failedJobsHistoryLimit: 0
   # Security context
   securityContext: {}
   # Node selector, affinity, and tolerations (inherit from main deployment if not specified)
