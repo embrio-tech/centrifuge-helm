@@ -7,4 +7,5 @@ metadata:
     "helm.sh/hook-weight": "-10"
     "helm.sh/hook-delete-policy": before-hook-creation
 data:
+  ENVIRONMENT: "{{ .Values.global.environment }}"
   SELECTED_NETWORKS: "{{ .Values.global.selectedNetworks }}"

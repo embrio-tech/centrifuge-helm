@@ -4,6 +4,7 @@ imagePullSecrets: []
 
 global:
   selectedNetworks: "1"
+  environment: "mainnet"
   #dbSecretName: centrifuge-api-dbConfig-secret
   apiSecretName: centrifuge-api-v3-apiConfig-secret
   # ---
