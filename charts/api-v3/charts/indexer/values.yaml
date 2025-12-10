@@ -81,11 +81,17 @@ livenessProbe:
   httpGet:
     path: /health
     port: 8000
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
 readinessProbe:
   initialDelaySeconds: 30
   httpGet:
     path: /ready
     port: 8000
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 360  # Allow up to 1 hour (360 * 10 seconds = 3600 seconds) for slow startup
 
 # Additional volumes on the output Deployment definition.
 volumes: []
