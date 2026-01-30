@@ -3,8 +3,9 @@ fullnameOverride: ""
 imagePullSecrets: []
 
 global:
-  selectedNetworks: "1"
-  environment: "mainnet"
+  env:
+    SELECTED_NETWORKS: "1"
+    ENVIRONMENT: "mainnet"
   #dbSecretName: centrifuge-api-dbConfig-secret
   apiSecretName: centrifuge-api-v3-apiConfig-secret
   # ---
