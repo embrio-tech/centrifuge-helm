@@ -2,7 +2,7 @@ apiVersion: v2
 name: centrifuge-api-v3
 description: Helm chart for Centrifuge API v3 ponder based indexer
 type: application
-version: 0.1.19
+version: 0.1.20
 appVersion: "1.16.0"
 dependencies:
   - alias: postgres
