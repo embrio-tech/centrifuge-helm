@@ -30,20 +30,18 @@ jobs:
           files: charts/**
           dir_names: true
           dir_names_max_depth: 2
-          json: true
+          json: false
 
       - name: Build changed chart list
         id: changed
         run: |
           set -euo pipefail
           CHANGED_DIRS='${{ steps.changed-files.outputs.all_changed_files }}'
-          if [ -z "$CHANGED_DIRS" ] || [ "$CHANGED_DIRS" = "null" ]; then
-            CHANGED_DIRS="[]"
+          if [ -z "$CHANGED_DIRS" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-          if [[ "$CHANGED_DIRS" == \[* ]]; then
-            CHANGED_DIRS="$(echo "$CHANGED_DIRS" | jq -r '.[]')"
-          fi
-          CHANGED_CHARTS="$(printf '%s\n' $CHANGED_DIRS | awk -F/ 'NF>=2{print $2}' | sort -u | tr '\n' ' ' | xargs)"
+          CHANGED_CHARTS="$(printf '%s\n' $CHANGED_DIRS | tr ' ' '\n' | awk -F/ 'NF>=2{print $2}' | sort -u | tr '\n' ' ' | xargs)"
           if [ -z "$CHANGED_CHARTS" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
