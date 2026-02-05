@@ -37,7 +37,13 @@ jobs:
         run: |
           set -euo pipefail
           CHANGED_DIRS='${{ steps.changed-files.outputs.all_changed_files }}'
-          CHANGED_CHARTS="$(echo "$CHANGED_DIRS" | jq -r '.[]' | awk -F/ 'NF>=2{print $2}' | sort -u | tr '\n' ' ' | xargs)"
+          if [ -z "$CHANGED_DIRS" ] || [ "$CHANGED_DIRS" = "null" ]; then
+            CHANGED_DIRS="[]"
+          fi
+          if [[ "$CHANGED_DIRS" == \[* ]]; then
+            CHANGED_DIRS="$(echo "$CHANGED_DIRS" | jq -r '.[]')"
+          fi
+          CHANGED_CHARTS="$(printf '%s\n' $CHANGED_DIRS | awk -F/ 'NF>=2{print $2}' | sort -u | tr '\n' ' ' | xargs)"
           if [ -z "$CHANGED_CHARTS" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
