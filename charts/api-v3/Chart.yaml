@@ -24,15 +24,6 @@ version: 0.1.19
 appVersion: "1.16.0"
 
 dependencies:
-  - alias: indexer
-    name: indexer
-    version: 0.1.0
-    repository: file://charts/indexer
-    condition: indexer.enabled
-  - name: query
-    version: 0.1.0
-    repository: file://charts/query
-    condition: query.enabled
   - alias: postgres
     name: cluster
     condition: postgres.enabled

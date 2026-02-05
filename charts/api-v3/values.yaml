@@ -4,7 +4,7 @@ imagePullSecrets: []
 
 global:
   env:
-    SELECTED_NETWORKS: "1"
+    SELECTED_NETWORKS: ""
     ENVIRONMENT: "mainnet"
   #dbSecretName: centrifuge-api-dbConfig-secret
   apiSecretName: centrifuge-api-v3-apiConfig-secret
@@ -20,14 +20,78 @@ global:
   # ---
 
 indexer:
-  enabled: false
+  enabled: true
+  nodeId: centrifuge
+  replicaCount: 1
   image:
+    repository: ghcr.io/centrifuge/api-v3
+    pullPolicy: IfNotPresent
     tag: "latest"
+  imagePullSecrets: []
+  nameOverride: ""
+  fullnameOverride: ""
+  command:
+    - --port
+    - "8000"
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext: {}
+  securityContext: {}
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 1Gi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  livenessProbe:
+    initialDelaySeconds: 30
+    httpGet:
+      path: /health
+      port: 8000
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    initialDelaySeconds: 30
+    httpGet:
+      path: /ready
+      port: 8000
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 360
+  volumes: []
+  volumeMounts: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  env: []
+  envFrom: []
     
 query:
-  enabled: false
+  enabled: true
+  replicaCount: 1
   image:
+    repository: ghcr.io/centrifuge/api-v3
+    pullPolicy: IfNotPresent
     tag: "latest"
+  command:
+    - serve
+    - --port
+    - "8000"
+  imagePullSecrets: []
+  nameOverride: ""
+  fullnameOverride: ""
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext: {}
+  securityContext: {}
+  service:
+    type: ClusterIP
+    port: 8000
   ingress:
     enabled: false
     className: "traefik"
@@ -37,6 +101,50 @@ query:
       nginx.ingress.kubernetes.io/ssl-redirect: "true"
     hosts: []
     tls: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  livenessProbe:
+    initialDelaySeconds: 30
+    httpGet:
+      path: /health
+      port: 8000
+  readinessProbe:
+    initialDelaySeconds: 30
+    httpGet:
+      path: /ready
+      port: 8000
+  env: {}
+  envFrom: []
+  volumes: []
+  volumeMounts: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+cacheJob:
+  enabled: false
+  annotations: {}
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 300
+  serviceAccountName: ""
+  imagePullSecrets: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  env: []
+  envFrom: []
 
 postgres:
   enabled: false

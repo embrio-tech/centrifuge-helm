@@ -1,0 +1,85 @@
+{{- if .Values.cacheJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "centrifuge-api.fullname" . }}-cache
+  labels:
+    {{- include "centrifuge-api.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cache
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded,BeforeHookCreation
+    {{- with .Values.cacheJob.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  backoffLimit: {{ .Values.cacheJob.backoffLimit }}
+  {{- if .Values.cacheJob.ttlSecondsAfterFinished }}
+  ttlSecondsAfterFinished: {{ .Values.cacheJob.ttlSecondsAfterFinished }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "centrifuge-api.labels" . | nindent 8 }}
+        app.kubernetes.io/component: cache
+    spec:
+      restartPolicy: Never
+      {{- if .Values.cacheJob.serviceAccountName }}
+      serviceAccountName: {{ .Values.cacheJob.serviceAccountName }}
+      {{- end }}
+      {{- with .Values.cacheJob.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: cache
+          image: "{{ .Values.indexer.image.repository }}:{{ .Values.indexer.image.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.indexer.image.pullPolicy }}
+          command:
+            - node
+            - scripts/cache.mjs
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.dbSecretName | default (printf "%s-postgres-app" .Release.Name) }}
+                  key: uri
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-config
+          {{- with .Values.cacheJob.env }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.cacheJob.envFrom }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.cacheJob.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.cacheJob.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.cacheJob.affinity }}
+      affinity:
+        {{- toYaml .Values.cacheJob.affinity | nindent 8 }}
+      {{- else if .Values.postgres.enabled }}
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: {{ .Values.postgres.cluster.affinity.topologyKey | quote }}
+                labelSelector:
+                  matchExpressions:
+                    - key: cnpg.io/cluster
+                      operator: In
+                      values:
+                        - {{ printf "%s-postgres" (include "centrifuge-api.fullname" .) | quote }}
+      {{- end }}
+      {{- with .Values.cacheJob.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

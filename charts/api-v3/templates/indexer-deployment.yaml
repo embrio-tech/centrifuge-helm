@@ -1,11 +1,12 @@
+{{- if .Values.indexer.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "node.fullname" . }}
+  name: {{ include "centrifuge-api.indexer.fullname" . }}
   labels:
-    {{- include "node.labels" . | nindent 4 }}
+    {{- include "centrifuge-api.indexer.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.indexer.replicaCount }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -13,56 +14,56 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      {{- include "node.selectorLabels" . | nindent 6 }}
+      {{- include "centrifuge-api.indexer.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
+      {{- with .Values.indexer.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "node.labels" . | nindent 8 }}
-        {{- with .Values.podLabels }}
+        {{- include "centrifuge-api.indexer.labels" . | nindent 8 }}
+        {{- with .Values.indexer.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      {{- with .Values.imagePullSecrets }}
+      {{- with .Values.indexer.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.podSecurityContext }}
+      {{- with .Values.indexer.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: {{ .Chart.Name }}
-          {{- with .Values.securityContext }}
+        - name: indexer
+          {{- with .Values.indexer.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ .Values.indexer.image.repository }}:{{ .Values.indexer.image.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.indexer.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: {{ .Values.service.port }}
+              containerPort: {{ .Values.indexer.service.port }}
               protocol: TCP
-          {{- with .Values.livenessProbe }}
+          {{- with .Values.indexer.livenessProbe }}
           livenessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.readinessProbe }}
+          {{- with .Values.indexer.readinessProbe }}
           readinessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.resources }}
+          {{- with .Values.indexer.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.volumeMounts }}
+          {{- with .Values.indexer.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.command }}
+          {{- with .Values.indexer.command }}
           args:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -73,8 +74,8 @@ spec:
                   name: {{ .Values.global.dbSecretName | default (printf "%s-postgres-app" .Release.Name) }}
                   key: uri
             - name: DATABASE_SCHEMA
-              value: "{{ .Values.image.tag }}"
-          {{- with .Values.env }}
+              value: "{{ .Values.indexer.image.tag | default "latest" }}"
+          {{- with .Values.indexer.env }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
           envFrom:
@@ -82,22 +83,23 @@ spec:
                 name: {{ .Release.Name }}-config
             - secretRef:
                 name: {{ .Values.global.apiSecretName }}
-          {{- with .Values.envFrom }}
+          {{- with .Values.indexer.envFrom }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- with .Values.volumes }}
+      {{- with .Values.indexer.volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.nodeSelector }}
+      {{- with .Values.indexer.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- with .Values.indexer.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
+      {{- with .Values.indexer.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+{{- end }}

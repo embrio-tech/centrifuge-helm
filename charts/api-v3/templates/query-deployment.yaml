@@ -1,11 +1,12 @@
+{{- if .Values.query.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "query.fullname" . }}
+  name: {{ include "centrifuge-api.query.fullname" . }}
   labels:
-    {{- include "query.labels" . | nindent 4 }}
+    {{- include "centrifuge-api.query.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .Values.query.replicaCount }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -13,37 +14,37 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      {{- include "query.selectorLabels" . | nindent 6 }}
+      {{- include "centrifuge-api.query.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
+      {{- with .Values.query.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "query.labels" . | nindent 8 }}
-        {{- with .Values.podLabels }}
+        {{- include "centrifuge-api.query.labels" . | nindent 8 }}
+        {{- with .Values.query.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      {{- with .Values.imagePullSecrets }}
+      {{- with .Values.query.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.podSecurityContext }}
+      {{- with .Values.query.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: {{ .Chart.Name }}
-          {{- with .Values.securityContext }}
+        - name: query
+          {{- with .Values.query.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ .Values.query.image.repository }}:{{ .Values.query.image.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.query.image.pullPolicy }}
           args:
-            {{- with .Values.command }}
+            {{- with .Values.query.command }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           env:
@@ -53,8 +54,8 @@ spec:
                   name: {{ .Values.global.dbSecretName | default (printf "%s-postgres-app" .Release.Name) }}
                   key: uri
             - name: DATABASE_SCHEMA
-              value: "{{ .Values.image.tag }}"
-          {{- with .Values.env }}
+              value: "{{ .Values.query.image.tag | default "latest" }}"
+          {{- with .Values.query.env }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
           envFrom:
@@ -62,42 +63,43 @@ spec:
                 name: {{ .Release.Name }}-config
             - secretRef:
                 name: {{ .Values.global.apiSecretName }}
-          {{- with .Values.envFrom }}
+          {{- with .Values.query.envFrom }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
           ports:
             - name: http
-              containerPort: {{ .Values.service.port }}
+              containerPort: {{ .Values.query.service.port }}
               protocol: TCP
-          {{- with .Values.livenessProbe }}
+          {{- with .Values.query.livenessProbe }}
           livenessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.readinessProbe }}
+          {{- with .Values.query.readinessProbe }}
           readinessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.resources }}
+          {{- with .Values.query.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.volumeMounts }}
+          {{- with .Values.query.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- with .Values.volumes }}
+      {{- with .Values.query.volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.nodeSelector }}
+      {{- with .Values.query.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- with .Values.query.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
+      {{- with .Values.query.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+{{- end }}
