@@ -1,0 +1,141 @@
+nameOverride: ""
+fullnameOverride: ""
+imagePullSecrets: []
+
+# -- Reference to existing secret in the same namespace containing eRPC secrets (e.g. ALCHEMY_API_KEY, CONDUIT_API_KEY, QUICKNODE_API_KEY, DRPC_API_KEY).
+#   Not deployed by this chart; must exist before deployment.
+global:
+  erpcSecretName: erpc-secrets
+
+erpc:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: ghcr.io/erpc/erpc
+    pullPolicy: IfNotPresent
+    tag: "latest"
+
+  # -- eRPC config as YAML string (erpc.yaml content). Use ${VAR} for env vars from the secret.
+  config: |
+    logLevel: debug
+    projects:
+      - id: main
+        upstreams:
+          - endpoint: alchemy://${ALCHEMY_API_KEY}
+          - endpoint: conduit://${CONDUIT_API_KEY}
+            onlyNetworks:
+              - evm:98866
+          - endpoint: quicknode://${QUICKNODE_API_KEY}
+          - endpoint: drpc://${DRPC_API_KEY}
+
+  # -- Override secret ref (defaults to global.erpcSecretName)
+  secretName: ""
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+  env:
+    - name: GOGC
+      value: "40"
+    - name: GOMEMLIMIT
+      value: "1900MiB"
+
+  service:
+    type: ClusterIP
+    httpPort: 4000
+    metricsPort: 4001
+
+  # -- Must be same or greater than server.maxTimeout in erpc.yaml
+  terminationGracePeriodSeconds: 180
+
+  startupProbe:
+    httpGet:
+      path: /healthcheck
+      port: 4000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+
+  readinessProbe:
+    httpGet:
+      path: /healthcheck
+      port: 4000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 5
+    failureThreshold: 2
+    successThreshold: 1
+
+  livenessProbe:
+    tcpSocket:
+      port: 4000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 3
+    successThreshold: 1
+
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext: {}
+  securityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 80
+      - type: Resource
+        resource:
+          name: memory
+          target:
+            type: Utilization
+            averageUtilization: 80
+
+  # -- Prometheus ServiceMonitor for kube-prometheus-stack (in namespace monitoring).
+  #    ServiceMonitor is created in the release namespace by default so Prometheus can discover
+  #    the eRPC service; ensure Prometheus watches this namespace (e.g. serviceMonitorNamespaceSelector)
+  #    or add labels so your Prometheus instance selects this monitor (e.g. release: kube-prometheus-stack).
+  metrics:
+    serviceMonitor:
+      enabled: false
+      # -- Leave empty to use release namespace. Set only if deploying eRPC into the monitoring namespace.
+      namespace: ""
+      interval: 30s
+      # -- Labels for Prometheus serviceMonitorSelector. For kube-prometheus-stack use:
+      #    release: kube-prometheus-stack
+      labels: {}
+      scrapeTimeout: 10s
+
+postgres:
+  enabled: false
+  cluster:
+    instances: 1
+    storage:
+      size: 128Gi
+      storageClass: "ceph-perf3"
+    resources:
+      requests:
+        cpu: 500m
+        memory: 4Gi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+    affinity:
+      topologyKey: topology.cinder.csi.openstack.org/zone

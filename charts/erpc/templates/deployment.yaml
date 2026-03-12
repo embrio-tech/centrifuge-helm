@@ -1,0 +1,88 @@
+{{- if .Values.erpc.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "erpc.fullname" . }}
+  labels:
+    {{- include "erpc.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.erpc.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "erpc.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "erpc.selectorLabels" . | nindent 8 }}
+        {{- with .Values.erpc.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.erpc.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.erpc.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: erpc
+          {{- with .Values.erpc.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.erpc.image.repository }}:{{ .Values.erpc.image.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.erpc.image.pullPolicy }}
+          env:
+            {{- toYaml .Values.erpc.env | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.erpc.secretName | default .Values.global.erpcSecretName }}
+          ports:
+            - containerPort: {{ .Values.erpc.service.httpPort }}
+              name: http
+            - containerPort: {{ .Values.erpc.service.metricsPort }}
+              name: metrics
+          volumeMounts:
+            - name: config
+              mountPath: /erpc.yaml
+              subPath: erpc.yaml
+          {{- with .Values.erpc.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.erpc.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.erpc.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.erpc.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "erpc.fullname" . }}-config
+      terminationGracePeriodSeconds: {{ .Values.erpc.terminationGracePeriodSeconds }}
+      {{- with .Values.erpc.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.erpc.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.erpc.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

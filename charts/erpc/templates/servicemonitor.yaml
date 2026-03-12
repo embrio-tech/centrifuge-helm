@@ -1,0 +1,25 @@
+{{- if and .Values.erpc.enabled .Values.erpc.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "erpc.fullname" . }}
+  {{- if .Values.erpc.metrics.serviceMonitor.namespace }}
+  namespace: {{ .Values.erpc.metrics.serviceMonitor.namespace }}
+  {{- end }}
+  labels:
+    {{- include "erpc.labels" . | nindent 4 }}
+    {{- with .Values.erpc.metrics.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "erpc.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: metrics
+      interval: {{ .Values.erpc.metrics.serviceMonitor.interval }}
+      {{- if .Values.erpc.metrics.serviceMonitor.scrapeTimeout }}
+      scrapeTimeout: {{ .Values.erpc.metrics.serviceMonitor.scrapeTimeout }}
+      {{- end }}
+      path: /
+{{- end }}

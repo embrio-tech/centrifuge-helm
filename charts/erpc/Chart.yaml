@@ -1,0 +1,12 @@
+apiVersion: v2
+name: erpc
+description: Helm chart for eRPC (EVM RPC gateway) with optional CloudNative Postgres
+type: application
+version: 0.1.0
+appVersion: "latest"
+dependencies:
+  - alias: postgres
+    name: cluster
+    condition: postgres.enabled
+    version: 0.3.1
+    repository: https://cloudnative-pg.github.io/charts

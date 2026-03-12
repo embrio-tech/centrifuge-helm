@@ -1,5 +1,8 @@
 name: Release Charts
 
+# Publishes all Helm charts under charts/ (api-v2, api-v3, erpc) when files under charts/** change.
+# Chart-releaser packages each chart and uploads new versions to GitHub Pages.
+
 on:
   push:
     branches:

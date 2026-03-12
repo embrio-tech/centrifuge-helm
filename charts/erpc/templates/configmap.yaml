@@ -1,0 +1,11 @@
+{{- if .Values.erpc.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "erpc.fullname" . }}-config
+  labels:
+    {{- include "erpc.labels" . | nindent 4 }}
+data:
+  erpc.yaml: |
+{{ .Values.erpc.config | indent 4 }}
+{{- end }}

@@ -1,0 +1,17 @@
+{{- if and .Values.erpc.enabled .Values.erpc.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "erpc.fullname" . }}
+  labels:
+    {{- include "erpc.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "erpc.fullname" . }}
+  minReplicas: {{ .Values.erpc.hpa.minReplicas }}
+  maxReplicas: {{ .Values.erpc.hpa.maxReplicas }}
+  metrics:
+    {{- toYaml .Values.erpc.hpa.metrics | nindent 4 }}
+{{- end }}
