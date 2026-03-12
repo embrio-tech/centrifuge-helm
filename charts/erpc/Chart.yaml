@@ -2,7 +2,7 @@ apiVersion: v2
 name: erpc
 description: Helm chart for eRPC (EVM RPC gateway) with optional CloudNative Postgres
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "latest"
 dependencies:
   - alias: postgres
