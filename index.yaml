@@ -1771,4 +1771,21 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v3-0.1.0/centrifuge-api-v3-0.1.0.tgz
     version: 0.1.0
-generated: "2026-02-26T09:22:02.615306434Z"
+  erpc:
+  - apiVersion: v2
+    appVersion: latest
+    created: "2026-03-12T07:43:46.805420547Z"
+    dependencies:
+    - alias: postgres
+      condition: postgres.enabled
+      name: cluster
+      repository: https://cloudnative-pg.github.io/charts
+      version: 0.3.1
+    description: Helm chart for eRPC (EVM RPC gateway) with optional CloudNative Postgres
+    digest: 7702605e6ce7d4ffa14b33fed1c7e91aebeb1fb43f7ca02b2c176fb7b166da8a
+    name: erpc
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/erpc-0.1.1/erpc-0.1.1.tgz
+    version: 0.1.1
+generated: "2026-03-12T07:43:46.805551883Z"
