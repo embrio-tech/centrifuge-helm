@@ -42,11 +42,11 @@ indexer:
     port: 8000
   resources:
     requests:
-      cpu: 100m
-      memory: 4Gi
+      cpu: 500m
+      memory: 3Gi
     limits:
-      cpu: "2"
-      memory: 4Gi
+      cpu: "1.5"
+      memory: 3Gi
   livenessProbe:
     httpGet:
       path: /health
@@ -112,8 +112,8 @@ query:
       cpu: 100m
       memory: 512Mi
     limits:
-      cpu: 1m
-      memory: 1Gi
+      cpu: "1"
+      memory: 512Mi
   livenessProbe:
     initialDelaySeconds: 30
     httpGet:
