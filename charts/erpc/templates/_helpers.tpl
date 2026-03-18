@@ -47,3 +47,21 @@ Selector labels
 app.kubernetes.io/name: {{ include "erpc.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+CloudNative-PG Cluster metadata.name (must match postgres subchart cluster.fullname).
+Application credentials secret: <this>-app (key uri, username, password, ...).
+*/}}
+{{- define "erpc.cnpgClusterFullname" -}}
+{{- $p := .Values.postgres }}
+{{- if $p.fullnameOverride }}
+{{- $p.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- $name := default "cluster" $p.nameOverride }}
+{{- if contains $name .Release.Name }}
+{{- .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+{{- end }}

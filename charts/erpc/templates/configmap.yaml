@@ -1,4 +1,31 @@
 {{- if .Values.erpc.enabled }}
+{{- $cfg := fromYaml .Values.erpc.config }}
+{{- $db := $cfg.database | default dict | deepCopy }}
+{{- $injectDb := false }}
+{{- if and .Values.redis.enabled .Values.erpc.database.sharedState.enabled }}
+{{- if not (hasKey $db "sharedState") }}
+{{- $ss := dict
+    "clusterKey" .Release.Name
+    "connector" (dict "driver" "redis" "redis" (dict "uri" "${REDIS_SHARED_STATE_URI}"))
+    "fallbackTimeout" "3s"
+    "lockTtl" "2s"
+    "lockMaxWait" "100ms"
+    "updateMaxWait" "50ms"
+}}
+{{- $db = merge $db (dict "sharedState" $ss) }}
+{{- $injectDb = true }}
+{{- end }}
+{{- end }}
+{{- if .Values.erpc.database.evmJsonRpcCache.enabled }}
+{{- if not (hasKey $db "evmJsonRpcCache") }}
+{{- $cache := fromYaml (include "erpc.defaultEvmJsonRpcCache" .) }}
+{{- $db = merge $db (dict "evmJsonRpcCache" $cache) }}
+{{- $injectDb = true }}
+{{- end }}
+{{- end }}
+{{- if or $injectDb (gt (len $db) 0) }}
+{{- $_ := set $cfg "database" $db }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -7,5 +34,5 @@ metadata:
     {{- include "erpc.labels" . | nindent 4 }}
 data:
   erpc.yaml: |
-{{ .Values.erpc.config | indent 4 }}
+{{ toYaml $cfg | nindent 4 }}
 {{- end }}

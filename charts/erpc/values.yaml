@@ -16,7 +16,11 @@ erpc:
     pullPolicy: IfNotPresent
     tag: "latest"
 
-  # -- eRPC config as YAML string (erpc.yaml content). Use ${VAR} for env vars from the secret.
+  # -- eRPC base config (erpc.yaml). Use ${VAR} for values from erpc-secrets.
+  #   When redis.enabled + database.sharedState.enabled, chart appends database.sharedState (Redis) per
+  #   https://docs.erpc.cloud/config/database/shared-state
+  #   When database.evmJsonRpcCache.enabled + postgres.enabled, POSTGRES_CACHE_URI defaults to CloudNativePG
+  #   app secret `<cluster>-app` key `uri`. Override via erpc-secrets only if useCnpgAppSecret: false.
   config: |
     logLevel: debug
     projects:
@@ -26,8 +30,9 @@ erpc:
           - endpoint: conduit://${CONDUIT_API_KEY}
             onlyNetworks:
               - evm:98866
-          - endpoint: quicknode://${QUICKNODE_API_KEY}
+          - endpoint: quicknode://${QUICKNODE_MASTER_API_KEY}
           - endpoint: drpc://${DRPC_API_KEY}
+          - endpoint: repository://evm-public-endpoints.erpc.cloud
 
   # -- Override secret ref (defaults to global.erpcSecretName)
   secretName: ""
@@ -123,6 +128,43 @@ erpc:
       labels: {}
       scrapeTimeout: 10s
 
+  # Database integration (merged into erpc.yaml unless you already define the same keys).
+  database:
+    # Shared state across replicas via Redis (recommended for HPA). Ignored if redis.enabled is false.
+    # With redis.auth.enabled, set REDIS_SHARED_STATE_URI in erpc-secrets (full redis://... URI).
+    sharedState:
+      enabled: true
+    # Persistent EVM JSON-RPC cache on PostgreSQL (see postgres.enabled). Uses CNPG app credentials by default.
+    evmJsonRpcCache:
+      enabled: false
+      # When true (default): POSTGRES_CACHE_URI from secret `<cnpg-cluster>-app`, key `uri` (same as CloudNative-PG app user).
+      # Set false to supply POSTGRES_CACHE_URI only via erpc-secrets (external Postgres).
+      useCnpgAppSecret: true
+
+# -- Bitnami Redis — shared state backend per https://docs.erpc.cloud/config/database/shared-state
+#   Service: `<release-name>-redis-master:6379`
+redis:
+  enabled: false
+  architecture: standalone
+  auth:
+    # Set true in production; use password or existingSecret, then wire the same secret into eRPC.
+    enabled: false
+    password: ""
+    # existingSecret: ""
+    # existingSecretPasswordKey: redis-password
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+
+# -- CloudNative-PG. With evmJsonRpcCache, eRPC reads `uri` from `<clusterfullname>-app` (operator-managed).
+#   Optional: set cluster.initdb.database (e.g. erpc_cache) on *new* clusters to isolate the cache DB.
 postgres:
   enabled: false
   cluster:

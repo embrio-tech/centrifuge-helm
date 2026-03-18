@@ -39,7 +39,15 @@ spec:
           image: "{{ .Values.erpc.image.repository }}:{{ .Values.erpc.image.tag | default "latest" }}"
           imagePullPolicy: {{ .Values.erpc.image.pullPolicy }}
           env:
-            {{- toYaml .Values.erpc.env | nindent 12 }}
+{{- $env := .Values.erpc.env | default list }}
+{{- if and .Values.redis.enabled (not .Values.redis.auth.enabled) .Values.erpc.database.sharedState.enabled }}
+{{- $env = concat $env (list (dict "name" "REDIS_SHARED_STATE_URI" "value" (include "erpc.redisSharedStateUri" .))) }}
+{{- end }}
+{{- if and .Values.erpc.database.evmJsonRpcCache.enabled .Values.postgres.enabled (ne false (.Values.erpc.database.evmJsonRpcCache.useCnpgAppSecret | default true)) }}
+{{- $cnpgApp := printf "%s-app" (include "erpc.cnpgClusterFullname" .) }}
+{{- $env = concat $env (list (dict "name" "POSTGRES_CACHE_URI" "valueFrom" (dict "secretKeyRef" (dict "name" $cnpgApp "key" "uri")))) }}
+{{- end }}
+            {{- toYaml $env | nindent 12 }}
           envFrom:
             - secretRef:
                 name: {{ .Values.erpc.secretName | default .Values.global.erpcSecretName }}
