@@ -48,6 +48,10 @@ erpc:
             evm:
               chainId: 999
               fallbackFinalityDepth: 5
+          - architecture: evm
+            evm:
+              chainId: 84532
+              fallbackFinalityDepth: 3
         upstreamDefaults:
           evm:
             statePollerInterval: 3s
