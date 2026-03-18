@@ -22,9 +22,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Add helm dependencies repo
+      - name: Add Helm dependency repos
         run: |
           helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo update
 
       - name: Detect changed chart directories
         id: changed-files
@@ -87,6 +89,17 @@ jobs:
         run: |
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
+
+      # Vendor subchart tgz for any chart releaser will package (not only those bumped this run).
+      - name: Helm dependency update (all charts)
+        if: steps.changed.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          for chart in charts/*/; do
+            [ -f "${chart}Chart.yaml" ] || continue
+            grep -q '^dependencies:' "${chart}Chart.yaml" 2>/dev/null || continue
+            helm dependency update "$chart"
+          done
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.7.0
