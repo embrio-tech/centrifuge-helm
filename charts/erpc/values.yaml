@@ -22,15 +22,47 @@ erpc:
   #   When database.evmJsonRpcCache.enabled + postgres.enabled, POSTGRES_CACHE_URI defaults to CloudNativePG
   #   app secret `<cluster>-app` key `uri`. Override via erpc-secrets only if useCnpgAppSecret: false.
   config: |
-    logLevel: debug
+    logLevel: info
     projects:
       - id: main
+        networkDefaults:
+          failsafe:
+            timeout:
+              duration: 15s
+            retry:
+              maxAttempts: 3
+              delay: 0ms
+            hedge:
+              delay: 500ms
+              maxCount: 2
+          evm:
+            statePollerInterval: 3s
+            fallbackFinalityDepth: 5
+            getLogsSplitOnError: true
+            getLogsSplitConcurrency: 4
+            getLogsMaxAllowedRange: 10000
+            integrity:
+              enforceHighestBlock: true
+              enforceGetLogsBlockRange: true
+        upstreamDefaults:
+          failsafe:
+            timeout:
+              duration: 10s
+            retry:
+              maxAttempts: 2
+              delay: 500ms
+              backoffFactor: 2
+        networks: []
         upstreams:
-          - endpoint: alchemy://${ALCHEMY_API_KEY}
           - endpoint: quicknode://${QUICKNODE_MASTER_API_KEY}
           - endpoint: drpc://${DRPC_API_KEY}
           - endpoint: repository://evm-public-endpoints.erpc.cloud
         providers:
+          - vendor: alchemy
+            settings:
+              apiKey: ${ALCHEMY_API_KEY}
+            ignoreNetworks:
+              - evm:999
           - vendor: conduit
             settings:
               apiKey: ${CONDUIT_API_KEY}
