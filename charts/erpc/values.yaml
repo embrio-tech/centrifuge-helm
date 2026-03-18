@@ -27,9 +27,10 @@ erpc:
       - id: main
         upstreams:
           - endpoint: alchemy://${ALCHEMY_API_KEY}
+          # Scope Conduit to this chain (replaces removed onlyNetworks; see upstreams docs)
           - endpoint: conduit://${CONDUIT_API_KEY}
-            onlyNetworks:
-              - evm:98866
+            evm:
+              chainId: 98866
           - endpoint: quicknode://${QUICKNODE_MASTER_API_KEY}
           - endpoint: drpc://${DRPC_API_KEY}
           - endpoint: repository://evm-public-endpoints.erpc.cloud
