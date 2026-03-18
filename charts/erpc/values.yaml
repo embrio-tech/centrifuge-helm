@@ -27,16 +27,16 @@ erpc:
       - id: main
         networkDefaults:
           failsafe:
-            timeout:
-              duration: 15s
-            retry:
-              maxAttempts: 3
-              delay: 0ms
-            hedge:
-              delay: 500ms
-              maxCount: 2
+            - matchMethod: "*"
+              timeout:
+                duration: 15s
+              retry:
+                maxAttempts: 3
+                delay: 0ms
+              hedge:
+                delay: 500ms
+                maxCount: 2
           evm:
-            statePollerInterval: 3s
             getLogsSplitOnError: true
             getLogsSplitConcurrency: 4
             getLogsMaxAllowedRange: 10000
@@ -49,13 +49,16 @@ erpc:
               chainId: 999
               fallbackFinalityDepth: 5
         upstreamDefaults:
+          evm:
+            statePollerInterval: 3s
           failsafe:
-            timeout:
-              duration: 10s
-            retry:
-              maxAttempts: 2
-              delay: 500ms
-              backoffFactor: 2
+            - matchMethod: "*"
+              timeout:
+                duration: 10s
+              retry:
+                maxAttempts: 2
+                delay: 500ms
+                backoffFactor: 2
         upstreams:
           - endpoint: quicknode://${QUICKNODE_MASTER_API_KEY}
           - endpoint: drpc://${DRPC_API_KEY}
