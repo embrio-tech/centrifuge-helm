@@ -37,13 +37,17 @@ erpc:
               maxCount: 2
           evm:
             statePollerInterval: 3s
-            fallbackFinalityDepth: 5
             getLogsSplitOnError: true
             getLogsSplitConcurrency: 4
             getLogsMaxAllowedRange: 10000
             integrity:
               enforceHighestBlock: true
               enforceGetLogsBlockRange: true
+        networks:
+          - architecture: evm
+            evm:
+              chainId: 999
+              fallbackFinalityDepth: 5
         upstreamDefaults:
           failsafe:
             timeout:
@@ -52,11 +56,11 @@ erpc:
               maxAttempts: 2
               delay: 500ms
               backoffFactor: 2
-        networks: []
         upstreams:
           - endpoint: quicknode://${QUICKNODE_MASTER_API_KEY}
           - endpoint: drpc://${DRPC_API_KEY}
           - endpoint: repository://evm-public-endpoints.erpc.cloud
+            group: fallback
         providers:
           - vendor: alchemy
             settings:
