@@ -8,7 +8,7 @@
     "clusterKey" .Release.Name
     "connector" (dict "driver" "redis" "redis" (dict "uri" "${REDIS_SHARED_STATE_URI}"))
     "fallbackTimeout" "3s"
-    "lockTtl" "2s"
+    "lockTtl" "3s"
     "lockMaxWait" "100ms"
     "updateMaxWait" "50ms"
 }}
