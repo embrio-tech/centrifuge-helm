@@ -57,7 +57,7 @@ Application credentials secret: <this>-app (key uri, username, password, ...).
 {{- if $p.fullnameOverride }}
 {{- $p.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- $name := default "cluster" $p.nameOverride }}
+{{- $name := default "postgres" $p.nameOverride }}
 {{- if contains $name .Release.Name }}
 {{- .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- else }}
