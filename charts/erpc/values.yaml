@@ -75,7 +75,6 @@ erpc:
         upstreams:
           - endpoint: quicknode://${QUICKNODE_MASTER_API_KEY}
           - endpoint: drpc://${DRPC_API_KEY}
-          - endpoint: repository://evm-public-endpoints.erpc.cloud
             group: fallback
         providers:
           - vendor: alchemy
@@ -88,7 +87,13 @@ erpc:
               apiKey: ${CONDUIT_API_KEY}
             onlyNetworks:
               - evm:98866
-
+          - endpoint: repository://evm-public-endpoints.erpc.cloud
+            group: fallback
+            ignoreNetworks:
+              - evm:999
+              - evm:8453
+              - evm:42161
+              
   # -- Override secret ref (defaults to global.erpcSecretName)
   secretName: ""
 
