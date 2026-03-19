@@ -43,10 +43,10 @@ indexer:
   resources:
     requests:
       cpu: 500m
-      memory: 3Gi
+      memory: 2Gi
     limits:
       cpu: "1.5"
-      memory: 3Gi
+      memory: 2Gi
   livenessProbe:
     httpGet:
       path: /health
