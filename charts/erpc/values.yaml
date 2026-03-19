@@ -26,8 +26,8 @@ erpc:
     projects:
       - id: main
         selectionPolicy:
-        strategy: round-robin
-        sessionDuration: 10s
+          strategy: round-robin
+          sessionDuration: 10s
         networkDefaults:
           failsafe:
             - matchMethod: "*"
@@ -87,13 +87,17 @@ erpc:
               apiKey: ${CONDUIT_API_KEY}
             onlyNetworks:
               - evm:98866
-          - endpoint: repository://evm-public-endpoints.erpc.cloud
-            group: fallback
+          - vendor: repository
+            settings:
+              repositoryUrl: https://evm-public-endpoints.erpc.cloud
             ignoreNetworks:
               - evm:999
               - evm:8453
               - evm:42161
-              
+            overrides:
+              "evm:*":
+                group: fallback
+
   # -- Override secret ref (defaults to global.erpcSecretName)
   secretName: ""
 
