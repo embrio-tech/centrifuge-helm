@@ -25,6 +25,9 @@ erpc:
     logLevel: info
     projects:
       - id: main
+        selectionPolicy:
+        strategy: round-robin
+        sessionDuration: 10s
         networkDefaults:
           failsafe:
             - matchMethod: "*"
@@ -33,9 +36,7 @@ erpc:
               retry:
                 maxAttempts: 3
                 delay: 0ms
-              hedge:
-                delay: 500ms
-                maxCount: 2
+              hedge: null
           evm:
             getLogsSplitOnError: true
             getLogsSplitConcurrency: 4
@@ -47,19 +48,19 @@ erpc:
           - architecture: evm
             evm:
               chainId: 999
-              fallbackFinalityDepth: 5
+              fallbackFinalityDepth: 15
           - architecture: evm
             evm:
               chainId: 84532
-              fallbackFinalityDepth: 5
+              fallbackFinalityDepth: 3
           - architecture: evm
             evm:
               chainId: 8453
-              fallbackFinalityDepth: 5
+              fallbackFinalityDepth: 3
           - architecture: evm
             evm:
               chainId: 42161
-              fallbackFinalityDepth: 5
+              fallbackFinalityDepth: 15
         upstreamDefaults:
           evm:
             statePollerInterval: 3s
