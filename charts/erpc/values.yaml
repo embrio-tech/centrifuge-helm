@@ -25,9 +25,6 @@ erpc:
     logLevel: info
     projects:
       - id: main
-        selectionPolicy:
-          strategy: round-robin
-          sessionDuration: 10s
         networkDefaults:
           failsafe:
             - matchMethod: "*"
