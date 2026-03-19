@@ -114,16 +114,31 @@ query:
     limits:
       cpu: "1"
       memory: 512Mi
+  # startupProbe: wait for full bootstrap (e.g. indexer reachable) before other probes apply.
+  # readinessProbe: keep serving from DB/cache while indexer is down; only /health must stay 200.
+  # Requires the api-v3 query image: /ready = strict deps, /health = process up (not indexer-gated).
   livenessProbe:
     initialDelaySeconds: 30
     httpGet:
       path: /health
       port: 8000
-  readinessProbe:
-    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  startupProbe:
     httpGet:
       path: /ready
       port: 8000
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 360
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
   env: {}
   envFrom: []
   volumes: []
