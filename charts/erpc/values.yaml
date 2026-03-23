@@ -201,6 +201,11 @@ erpc:
       # When true (default): POSTGRES_CACHE_URI from secret `<cnpg-cluster>-app`, key `uri` (same as CloudNative-PG app user).
       # Set false to supply POSTGRES_CACHE_URI only via erpc-secrets (external Postgres).
       useCnpgAppSecret: true
+      # Postgres cache pool per eRPC pod (https://github.com/erpc/erpc/blob/main/common/config.go — PostgreSQLConnectorConfig).
+      # Keep (erpc.replicaCount * maxConns) well below postgres max_connections (see postgres.cluster.postgresql.parameters).
+      postgresql:
+        minConns: 2
+        maxConns: 20
 
 # -- Bitnami Redis — shared state backend per https://docs.erpc.cloud/config/database/shared-state
 #   Service: `<release-name>-redis-master:6379`
@@ -242,3 +247,8 @@ postgres:
         memory: 4Gi
     affinity:
       topologyKey: topology.cinder.csi.openstack.org/zone
+    postgresql:
+      parameters:
+        # eRPC-only (e.g. 2 pods × evmJsonRpcCache.postgresql.maxConns 20 ≈ 40) + CNPG/metrics headroom.
+        # Raise if you add replicas, other apps, or still see SQLSTATE 53300.
+        max_connections: "150"
