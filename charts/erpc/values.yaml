@@ -2,7 +2,7 @@ nameOverride: ""
 fullnameOverride: ""
 imagePullSecrets: []
 
-# -- Reference to existing secret in the same namespace containing eRPC secrets (e.g. ALCHEMY_API_KEY, CONDUIT_API_KEY, QUICKNODE_API_KEY, DRPC_API_KEY).
+# -- Reference to existing secret in the same namespace containing eRPC secrets (e.g. ALCHEMY_API_KEY, CONDUIT_API_KEY, QUICKNODE_API_KEY, DRPC_API_KEY, PHAROS_API_KEY).
 #   Not deployed by this chart; must exist before deployment.
 global:
   erpcSecretName: erpc-secrets
@@ -58,6 +58,10 @@ erpc:
             evm:
               chainId: 42161
               fallbackFinalityDepth: 15
+          - architecture: evm
+            evm:
+              chainId: 1672
+              fallbackFinalityDepth: 15
         upstreamDefaults:
           evm:
             statePollerInterval: 3s
@@ -73,12 +77,16 @@ erpc:
           - endpoint: quicknode://${QUICKNODE_MASTER_API_KEY}
           - endpoint: drpc://${DRPC_API_KEY}
             group: fallback
+          - endpoint: https://pharos-mainnet.g.alchemy.com/v2/${PHAROS_API_KEY}
+            evm:
+              chainId: 1672
         providers:
           - vendor: alchemy
             settings:
               apiKey: ${ALCHEMY_API_KEY}
             ignoreNetworks:
               - evm:999
+              - evm:1672
           - vendor: conduit
             settings:
               apiKey: ${CONDUIT_API_KEY}
@@ -91,6 +99,7 @@ erpc:
               - evm:999
               - evm:8453
               - evm:42161
+              - evm:1672
             overrides:
               "evm:*":
                 group: fallback
