@@ -92,17 +92,20 @@ erpc:
               apiKey: ${CONDUIT_API_KEY}
             onlyNetworks:
               - evm:98866
+          # Public chainlist endpoints: lazy-loaded per network. Without onlyNetworks, any chain
+          # touched by traffic gets hundreds of public URLs, each polled (evmStatePoller) on
+          # upstreamDefaults.statePollerInterval — causing 429 spam and competing with QuickNode/dRPC/Alchemy.
+          # onlyNetworks keeps repository fallback to slow L1 (Ethereum); premium providers cover the rest.
           - vendor: repository
             settings:
               repositoryUrl: https://evm-public-endpoints.erpc.cloud
-            ignoreNetworks:
-              - evm:999
-              - evm:8453
-              - evm:42161
-              - evm:1672
+            onlyNetworks:
+              - evm:1
             overrides:
-              "evm:*":
+              "evm:1":
                 group: fallback
+                evm:
+                  statePollerInterval: 30s
 
   # -- Override secret ref (defaults to global.erpcSecretName)
   secretName: ""
