@@ -18,6 +18,7 @@ erpc:
   image:
     repository: ghcr.io/erpc/erpc
     pullPolicy: IfNotPresent
+    # Pin to your running eRPC (e.g. "0.0.63"); `erpc.config` keys must match that release’s schema.
     tag: "latest"
 
   # -- eRPC config (erpc.yaml) as structured YAML so production can override subtrees (e.g. erpc.config.projects).
@@ -42,10 +43,6 @@ erpc:
         - X-Real-Ip
     projects:
       - id: main
-        # Sticky load balancer: strategy weighted uses upstream `weight`; sessionDuration keeps clients on one node briefly to avoid block/log mismatch.
-        selectionPolicy:
-          strategy: weighted
-          sessionDuration: 10s
         # Auth (https://docs.erpc.cloud/config/auth): strategies are OR'd — satisfy network (in-cluster IP) OR secret (public).
         # - Internal: call the ClusterIP Service; client IP is a pod IP → allowedCIDRs (override if your pod CIDR is not 10.42.0.0/16).
         # - Public: use Ingress hostname; requires server.trustedIPForwarders/Headers so ClientIP() is the real IP; then network vs allowedCIDRs and/or secret strategies apply.
@@ -91,41 +88,54 @@ erpc:
                 delay: 250ms
                 backoffFactor: 2
               hedge: null
+        # Per-chain tuning (EvmNetworkConfig): no statePollerInterval here — use upstreamDefaults / provider overrides (eRPC 0.0.x schema).
         networks:
           - architecture: evm
-            evm: { chainId: 999, fallbackFinalityDepth: 17, statePollerInterval: 1s } # Hyperliquid
+            evm:
+              chainId: 999
+              fallbackFinalityDepth: 17
           - architecture: evm
-            evm: { chainId: 42161, fallbackFinalityDepth: 20, statePollerInterval: 1s } # Arbitrum
+            evm:
+              chainId: 42161
+              fallbackFinalityDepth: 20
           - architecture: evm
-            evm: { chainId: 8453, fallbackFinalityDepth: 3, statePollerInterval: 2s } # Base
+            evm:
+              chainId: 8453
+              fallbackFinalityDepth: 3
           - architecture: evm
-            evm: { chainId: 84532, fallbackFinalityDepth: 3, statePollerInterval: 2s } # Base Sepolia
+            evm:
+              chainId: 84532
+              fallbackFinalityDepth: 3
         upstreams:
           - endpoint: quicknode://${QUICKNODE_MASTER_API_KEY}
             id: upstream-quicknode
-            weight: 33
           - endpoint: drpc://${DRPC_API_KEY}
             id: upstream-drpc
-            weight: 33
-          - endpoint: alchemy://${ALCHEMY_API_KEY}
-            id: upstream-alchemy
-            weight: 33
-            ignoreNetworks:
-              - evm:999
-              - evm:1672
           - endpoint: https://pharos-mainnet.g.alchemy.com/v2/${PHAROS_API_KEY}
             id: alchemy-pharos
             evm:
               chainId: 1672
-          - endpoint: repository://evm-public-endpoints.erpc.cloud
-            group: fallback
-            evm:
-              statePollerInterval: 30s
+        # ignoreNetworks / multi-chain Alchemy + repository are configured on providers (not on upstream entries in eRPC 0.0.x).
+        providers:
+          - vendor: alchemy
+            settings:
+              apiKey: ${ALCHEMY_API_KEY}
+            ignoreNetworks:
+              - evm:999
+              - evm:1672
+          - vendor: repository
+            settings:
+              repositoryUrl: https://evm-public-endpoints.erpc.cloud
             ignoreNetworks:
               - evm:999
               - evm:8453
               - evm:42161
               - evm:84532
+            overrides:
+              "evm:1":
+                group: fallback
+                evm:
+                  statePollerInterval: 30s
 
   # -- Override upstream RPC Secret name (defaults to global.erpcSecretName)
   secretName: ""
