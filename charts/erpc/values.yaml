@@ -4,8 +4,6 @@ imagePullSecrets: []
 
 # Neither upstream nor auth Secrets are deployed by this chart. For migration you may point upstream and auth at the same Secret name(s).
 global:
-  # -- If set, Bitnami Redis PVCs use this as storageClassName (Bitnami `common.storage.class` prefers this over `redis.master.persistence.storageClass`). Leave empty to rely on `redis.master.persistence.storageClass` or the cluster default StorageClass.
-  storageClass: ""
   # -- Existing Secret: upstream RPC provider keys and related infra (${VAR} in erpc.config), e.g. ALCHEMY_API_KEY, QUICKNODE_*, DRPC_API_KEY, PHAROS_API_KEY, REDIS_SHARED_STATE_URI, POSTGRES_CACHE_URI.
   erpcSecretName: erpc-secrets
   # -- Predeployed Secret metadata.name holding auth values; keys below must exist as Secret data keys (become env vars for ${KEY} in eRPC config).
@@ -294,7 +292,7 @@ redis:
     persistence:
       enabled: true
       size: 8Gi
-      # -- When `global.storageClass` is empty, this becomes the Redis PVC storageClassName; if both are empty, the cluster default StorageClass is used.
+      # -- Redis PVC storageClassName; empty uses the cluster default StorageClass.
       storageClass: ""
     resources:
       requests:
