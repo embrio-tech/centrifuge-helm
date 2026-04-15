@@ -6,7 +6,14 @@
 {{- else }}
 {{- $cfg = deepCopy $raw }}
 {{- end }}
-{{- $authKeys := .Values.erpc.authSecretKeys | default .Values.global.erpcAuthSecretKeys | default list | compact | uniq }}
+{{- /* Coalesce auth key names: non-empty erpc.authSecretKeys wins, else global.erpcAuthSecretKeys (Helm global is merged for this release). */}}
+{{- $authKeys := list }}
+{{- if and .Values.erpc.authSecretKeys (gt (len .Values.erpc.authSecretKeys) 0) }}
+{{- $authKeys = .Values.erpc.authSecretKeys }}
+{{- else if and .Values.global.erpcAuthSecretKeys (gt (len .Values.global.erpcAuthSecretKeys) 0) }}
+{{- $authKeys = .Values.global.erpcAuthSecretKeys }}
+{{- end }}
+{{- $authKeys = $authKeys | compact | uniq }}
 {{- $authPid := .Values.erpc.authSecretKeysProjectId | default "main" }}
 {{- if gt (len $authKeys) 0 }}
 {{- $newProjects := list }}
@@ -23,8 +30,9 @@
 {{- range $authKeys }}
 {{- $merged = concat $merged (list (dict "type" "secret" "secret" (dict "value" (printf "${%s}" .)))) }}
 {{- end }}
-{{- $authBlock := .auth | default dict }}
-{{- $_ := set $proj "auth" (merge $authBlock (dict "strategies" $merged)) }}
+{{- $authBlock := deepCopy (.auth | default dict) }}
+{{- $_ := set $authBlock "strategies" $merged }}
+{{- $_ := set $proj "auth" $authBlock }}
 {{- end }}
 {{- $newProjects = concat $newProjects (list $proj) }}
 {{- end }}
