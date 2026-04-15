@@ -2,10 +2,14 @@ nameOverride: ""
 fullnameOverride: ""
 imagePullSecrets: []
 
-# -- Reference to existing secret in the same namespace containing eRPC secrets (e.g. ALCHEMY_API_KEY, CONDUIT_API_KEY, QUICKNODE_API_KEY, DRPC_API_KEY, PHAROS_API_KEY).
-#   Not deployed by this chart; must exist before deployment.
+# Neither upstream nor auth Secrets are deployed by this chart. For migration you may point upstream and auth at the same Secret name(s).
 global:
+  # -- Existing Secret: upstream RPC provider keys and related infra (${VAR} in erpc.config), e.g. ALCHEMY_API_KEY, QUICKNODE_*, DRPC_API_KEY, PHAROS_API_KEY, REDIS_SHARED_STATE_URI, POSTGRES_CACHE_URI.
   erpcSecretName: erpc-secrets
+  # -- Predeployed Secret metadata.name holding auth values; keys below must exist as Secret data keys (become env vars for ${KEY} in eRPC config).
+  erpcAuthSecretName: erpc-auth-secrets
+  # -- Data keys inside that Secret; chart appends one `type: secret` strategy per key (value: ${KEY}) on the auth project.
+  erpcAuthSecretKeys: []
 
 erpc:
   enabled: true
@@ -16,15 +20,32 @@ erpc:
     pullPolicy: IfNotPresent
     tag: "latest"
 
-  # -- eRPC base config (erpc.yaml). Use ${VAR} for values from erpc-secrets.
+  # -- eRPC config (erpc.yaml) as structured YAML so production can override subtrees (e.g. erpc.config.projects).
+  #   Legacy: set erpc.config to a single multiline string of YAML; chart still accepts that form.
+  #   Use ${VAR} from global.erpcSecretName (upstream). Auth API keys: global.erpcAuthSecretName + global.erpcAuthSecretKeys (injected as secret strategies); see global comments.
   #   When redis.enabled + database.sharedState.enabled, chart appends database.sharedState (Redis) per
   #   https://docs.erpc.cloud/config/database/shared-state
   #   When database.evmJsonRpcCache.enabled + postgres.enabled, POSTGRES_CACHE_URI defaults to CloudNativePG
-  #   app secret `<cluster>-app` key `uri`. Override via erpc-secrets only if useCnpgAppSecret: false.
-  config: |
+  #   app secret `<cluster>-app` key `uri`. Override POSTGRES_CACHE_URI in the upstream Secret only if useCnpgAppSecret: false.
+  config:
     logLevel: info
     projects:
       - id: main
+        # Auth (https://docs.erpc.cloud/config/auth): strategies are OR'd — satisfy network (in-cluster IP) OR secret (public).
+        # - Internal: call the ClusterIP Service; client IP is a pod IP → allowedCIDRs (override if your pod CIDR is not 10.42.0.0/16).
+        # - Public: use Ingress hostname; trustedProxies + X-Forwarded-For yield a real client IP outside allowedCIDRs → require X-ERPC-Secret-Token or ?secret=.
+        #   `type: secret` strategies are generated from global.erpcAuthSecretKeys (keys in global.erpcAuthSecretName); add keys there for more API keys (OR across strategies).
+        # Tighten trustedProxies if your ingress/proxy topology differs; too broad weakens IP-based checks.
+        auth:
+          strategies:
+            - type: network
+              network:
+                allowedCIDRs:
+                  - 10.42.0.0/16
+                trustedProxies:
+                  - 192.168.42.0/24
+                  - 10.42.0.0/16
+                  - 10.43.0.0/16
         networkDefaults:
           failsafe:
             - matchMethod: "*"
@@ -107,8 +128,14 @@ erpc:
                 evm:
                   statePollerInterval: 30s
 
-  # -- Override secret ref (defaults to global.erpcSecretName)
+  # -- Override upstream RPC Secret name (defaults to global.erpcSecretName)
   secretName: ""
+  # -- Override predeployed auth Secret name (defaults to global.erpcAuthSecretName)
+  authSecretName: ""
+  # -- Override list of Secret data keys used for `type: secret` strategies (defaults to global.erpcAuthSecretKeys when empty)
+  authSecretKeys: []
+  # -- Project id to inject secret strategies into (default main)
+  authSecretKeysProjectId: ""
 
   resources:
     requests:
@@ -128,6 +155,26 @@ erpc:
     type: ClusterIP
     httpPort: 4000
     metricsPort: 4001
+
+  ingress:
+    enabled: false
+    className: "traefik"
+    annotations:
+      kubernetes.io/tls-acme: "true"
+      traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # Example when enabled:
+    # hosts:
+    #   - host: erpc.example.com
+    #     paths:
+    #       - path: /
+    #         pathType: Prefix
+    # tls:
+    #   - secretName: erpc-example-tls
+    #     hosts:
+    #       - erpc.example.com
+    hosts: []
+    tls: []
 
   # -- Must be same or greater than server.maxTimeout in erpc.yaml
   terminationGracePeriodSeconds: 180
@@ -204,14 +251,14 @@ erpc:
   # Database integration (merged into erpc.yaml unless you already define the same keys).
   database:
     # Shared state across replicas via Redis (recommended for HPA). Ignored if redis.enabled is false.
-    # With redis.auth.enabled, set REDIS_SHARED_STATE_URI in erpc-secrets (full redis://... URI).
+    # With redis.auth.enabled, set REDIS_SHARED_STATE_URI in the upstream Secret (full redis://... URI).
     sharedState:
       enabled: true
     # Persistent EVM JSON-RPC cache on PostgreSQL (see postgres.enabled). Uses CNPG app credentials by default.
     evmJsonRpcCache:
       enabled: false
       # When true (default): POSTGRES_CACHE_URI from secret `<cnpg-cluster>-app`, key `uri` (same as CloudNative-PG app user).
-      # Set false to supply POSTGRES_CACHE_URI only via erpc-secrets (external Postgres).
+      # Set false to supply POSTGRES_CACHE_URI only via the upstream Secret (external Postgres).
       useCnpgAppSecret: true
       # Postgres cache pool per eRPC pod (https://github.com/erpc/erpc/blob/main/common/config.go — PostgreSQLConnectorConfig).
       # Keep (erpc.replicaCount * maxConns) well below postgres max_connections (see postgres.cluster.postgresql.parameters).

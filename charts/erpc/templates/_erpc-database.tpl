@@ -7,7 +7,7 @@ redis://{{ .Release.Name }}-redis-master.{{ .Release.Namespace }}.svc.cluster.lo
 
 {{/*
 Default evmJsonRpcCache: memory for hot paths, PostgreSQL for finalized (per https://docs.erpc.cloud/config/database/evm-json-rpc-cache).
-Requires POSTGRES_CACHE_URI in erpc-secrets (connectionUri uses env substitution in erpc).
+Requires POSTGRES_CACHE_URI in the upstream eRPC Secret (connectionUri uses env substitution in erpc).
 Cap maxConns to avoid exhausting Postgres max_connections (SQLSTATE 53300); scale max_connections on CNPG if you add replicas.
 */}}
 {{- define "erpc.defaultEvmJsonRpcCache" -}}

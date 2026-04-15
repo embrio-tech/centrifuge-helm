@@ -1,0 +1,43 @@
+{{- if and .Values.erpc.enabled .Values.erpc.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "erpc.fullname" . }}
+  labels:
+    {{- include "erpc.labels" . | nindent 4 }}
+  {{- with .Values.erpc.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.erpc.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.erpc.ingress.tls }}
+  tls:
+    {{- range .Values.erpc.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.erpc.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            {{- with .pathType }}
+            pathType: {{ . }}
+            {{- end }}
+            backend:
+              service:
+                name: {{ include "erpc.fullname" $ }}
+                port:
+                  number: {{ $.Values.erpc.service.httpPort }}
+          {{- end }}
+    {{- end }}
+{{- end }}

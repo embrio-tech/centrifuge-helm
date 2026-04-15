@@ -1,5 +1,35 @@
 {{- if .Values.erpc.enabled }}
-{{- $cfg := fromYaml .Values.erpc.config }}
+{{- $raw := .Values.erpc.config | default dict }}
+{{- $cfg := dict }}
+{{- if kindIs "string" $raw }}
+{{- $cfg = fromYaml $raw }}
+{{- else }}
+{{- $cfg = deepCopy $raw }}
+{{- end }}
+{{- $authKeys := .Values.erpc.authSecretKeys | default .Values.global.erpcAuthSecretKeys | default list | compact | uniq }}
+{{- $authPid := .Values.erpc.authSecretKeysProjectId | default "main" }}
+{{- if gt (len $authKeys) 0 }}
+{{- $newProjects := list }}
+{{- range $cfg.projects }}
+{{- $proj := deepCopy . }}
+{{- if eq .id $authPid }}
+{{- $base := .auth.strategies | default list }}
+{{- $merged := list }}
+{{- range $base }}
+{{- if ne .type "secret" }}
+{{- $merged = concat $merged (list .) }}
+{{- end }}
+{{- end }}
+{{- range $authKeys }}
+{{- $merged = concat $merged (list (dict "type" "secret" "secret" (dict "value" (printf "${%s}" .)))) }}
+{{- end }}
+{{- $authBlock := .auth | default dict }}
+{{- $_ := set $proj "auth" (merge $authBlock (dict "strategies" $merged)) }}
+{{- end }}
+{{- $newProjects = concat $newProjects (list $proj) }}
+{{- end }}
+{{- $_ := set $cfg "projects" $newProjects }}
+{{- end }}
 {{- $db := $cfg.database | default dict | deepCopy }}
 {{- $injectDb := false }}
 {{- if and .Values.redis.enabled .Values.erpc.database.sharedState.enabled }}

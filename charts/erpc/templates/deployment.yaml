@@ -51,6 +51,8 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ .Values.erpc.secretName | default .Values.global.erpcSecretName }}
+            - secretRef:
+                name: {{ .Values.erpc.authSecretName | default .Values.global.erpcAuthSecretName }}
           ports:
             - containerPort: {{ .Values.erpc.service.httpPort }}
               name: http
