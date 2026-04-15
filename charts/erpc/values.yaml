@@ -70,7 +70,8 @@ erpc:
               hedge: null # no hedging (avoids integrity issues from parallel upstreams)
           evm:
             getLogsSplitOnError: true
-            getLogsMaxAllowedRange: 1000
+            # Ponder/viem often request >1k blocks per eth_getLogs; too low rejects with "exceeded max allowed range".
+            getLogsMaxAllowedRange: 10000
             getLogsSplitConcurrency: 4
             integrity:
               enforceHighestBlock: true
