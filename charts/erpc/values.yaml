@@ -29,11 +29,22 @@ erpc:
   #   app secret `<cluster>-app` key `uri`. Override POSTGRES_CACHE_URI in the upstream Secret only if useCnpgAppSecret: false.
   config:
     logLevel: info
+    # Trust in-cluster hops (e.g. Traefik) so resolveRealClientIP reads X-Forwarded-For / X-Real-Ip before auth.
+    # Without server.trustedIPForwarders + trustedIPHeaders, ClientIP() stays as RemoteAddr (often a pod in 10.42.0.0/16) and project network.allowedCIDRs matches everyone.
+    # Align trustedIPForwarders with actual TCP peers to eRPC; project auth.network.trustedProxies is separate (eRPC docs vs server IP trust).
+    server:
+      trustedIPForwarders:
+        - 10.42.0.0/16
+        - 10.43.0.0/16
+        - 192.168.42.0/24
+      trustedIPHeaders:
+        - X-Forwarded-For
+        - X-Real-Ip
     projects:
       - id: main
         # Auth (https://docs.erpc.cloud/config/auth): strategies are OR'd — satisfy network (in-cluster IP) OR secret (public).
         # - Internal: call the ClusterIP Service; client IP is a pod IP → allowedCIDRs (override if your pod CIDR is not 10.42.0.0/16).
-        # - Public: use Ingress hostname; trustedProxies + X-Forwarded-For yield a real client IP outside allowedCIDRs → require X-ERPC-Secret-Token or ?secret=.
+        # - Public: use Ingress hostname; requires server.trustedIPForwarders/Headers so ClientIP() is the real IP; then network vs allowedCIDRs and/or secret strategies apply.
         #   `type: secret` strategies are generated from global.erpcAuthSecretKeys (keys in global.erpcAuthSecretName); add keys there for more API keys (OR across strategies).
         # Tighten trustedProxies if your ingress/proxy topology differs; too broad weakens IP-based checks.
         auth:
@@ -163,16 +174,16 @@ erpc:
       kubernetes.io/tls-acme: "true"
       traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
       nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    # Example when enabled:
+    # Example when enabled (tls MUST live under ingress, with secretName + hosts per item — not erpc.tls, not a bare secret name):
     # hosts:
-    #   - host: erpc.example.com
+    #   - host: erpc.cfg.embrio.tech
     #     paths:
     #       - path: /
     #         pathType: Prefix
     # tls:
-    #   - secretName: erpc-example-tls
+    #   - secretName: cfg-api-erpc-tls
     #     hosts:
-    #       - erpc.example.com
+    #       - erpc.cfg.embrio.tech
     hosts: []
     tls: []
 
