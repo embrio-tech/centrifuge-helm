@@ -61,6 +61,7 @@ erpc:
                   - 192.168.42.0/24
                   - 10.42.0.0/16
                   - 10.43.0.0/16
+        # Applies to every network, including when traffic uses direct-provider upstreams (not only the peer eRPC).
         networkDefaults:
           failsafe:
             - matchMethod: "*"
@@ -71,9 +72,25 @@ erpc:
                 delay: 100ms
               hedge: null # no hedging (avoids integrity issues from parallel upstreams)
           evm:
+            getLogsSplitOnError: true
+            getLogsMaxAllowedRange: 1000
+            getLogsSplitConcurrency: 4
             integrity:
               enforceHighestBlock: true
               enforceGetLogsBlockRange: true
+        # Merged into each upstream; important when selection falls through to QuickNode/dRPC/Alchemy/repository.
+        upstreamDefaults:
+          evm:
+            statePollerInterval: 2s
+          failsafe:
+            - matchMethod: "*"
+              timeout:
+                duration: 10s
+              retry:
+                maxAttempts: 2
+                delay: 250ms
+                backoffFactor: 2
+              hedge: null
         networks:
           - architecture: evm
             evm: { chainId: 999, fallbackFinalityDepth: 17, statePollerInterval: 1s } # Hyperliquid
@@ -102,6 +119,8 @@ erpc:
               chainId: 1672
           - endpoint: repository://evm-public-endpoints.erpc.cloud
             group: fallback
+            evm:
+              statePollerInterval: 30s
             ignoreNetworks:
               - evm:999
               - evm:8453
