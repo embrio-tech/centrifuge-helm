@@ -4,7 +4,7 @@ imagePullSecrets: []
 
 # Neither upstream nor auth Secrets are deployed by this chart. For migration you may point upstream and auth at the same Secret name(s).
 global:
-  # -- Existing Secret: upstream RPC provider keys and related infra (${VAR} in erpc.config), e.g. ALCHEMY_API_KEY, QUICKNODE_MASTER_API_KEY, QUICKNODE_API_NAME + QUICKNODE_API_KEY (Hyperliquid nanoreth URL), CONDUIT_API_KEY (Plume rpc.plume.org path), DRPC_API_KEY, PHAROS_API_KEY, REDIS_SHARED_STATE_URI, POSTGRES_CACHE_URI.
+  # -- Existing Secret: upstream RPC provider keys and related infra (${VAR} in erpc.config), e.g. ALCHEMY_API_KEY, QUICKNODE_MASTER_API_KEY, QUICKNODE_HYPE_RPC (QuickNode base URL for Hyperliquid …/evm + …/nanoreth), CONDUIT_API_KEY, DRPC_API_KEY, PHAROS_API_KEY, REDIS_SHARED_STATE_URI, POSTGRES_CACHE_URI.
   erpcSecretName: erpc-secrets
   # -- Predeployed Secret metadata.name holding auth values; keys below must exist as Secret data keys (become env vars for ${KEY} in eRPC config).
   erpcAuthSecretName: erpc-auth-secrets
@@ -105,11 +105,21 @@ erpc:
             evm:
               chainId: 98866
               fallbackFinalityDepth: 10
-        # Dedicated upstreams; providers ignore only evm:999 here so it is not duplicated from QuickNode/Alchemy/dRPC pools.
+        # Hyperliquid (999): /evm = last 1024 blocks only (full); /nanoreth = at most latest-1024 (archive). Non-overlapping window so new work never hits nanoreth and deep history never hits /evm.
         upstreams:
-          - endpoint: ${QUICKNODE_HYPE_RPC}
+          - endpoint: ${QUICKNODE_HYPE_RPC}/evm
             evm:
               chainId: 999
+              nodeType: full
+              maxAvailableRecentBlocks: 1024
+          - endpoint: ${QUICKNODE_HYPE_RPC}/nanoreth
+            evm:
+              chainId: 999
+              nodeType: archive
+              blockAvailability:
+                upper:
+                  latestBlockMinus: 1024
+                  probe: blockHeader
           - endpoint: https://rpc.plume.org/${CONDUIT_API_KEY}
             evm:
               chainId: 98866
