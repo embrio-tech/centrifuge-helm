@@ -4,7 +4,7 @@ imagePullSecrets: []
 
 # Neither upstream nor auth Secrets are deployed by this chart. For migration you may point upstream and auth at the same Secret name(s).
 global:
-  # -- Existing Secret: upstream RPC provider keys and related infra (${VAR} in erpc.config), e.g. ALCHEMY_API_KEY, QUICKNODE_*, DRPC_API_KEY, PHAROS_API_KEY, REDIS_SHARED_STATE_URI, POSTGRES_CACHE_URI.
+  # -- Existing Secret: upstream RPC provider keys and related infra (${VAR} in erpc.config), e.g. ALCHEMY_API_KEY, QUICKNODE_MASTER_API_KEY, QUICKNODE_API_NAME + QUICKNODE_API_KEY (Hyperliquid nanoreth URL), DRPC_API_KEY, PHAROS_API_KEY, REDIS_SHARED_STATE_URI, POSTGRES_CACHE_URI.
   erpcSecretName: erpc-secrets
   # -- Predeployed Secret metadata.name holding auth values; keys below must exist as Secret data keys (become env vars for ${KEY} in eRPC config).
   erpcAuthSecretName: erpc-auth-secrets
@@ -114,11 +114,6 @@ erpc:
             evm:
               chainId: 999
               fallbackFinalityDepth: 17
-            # Hyperliquid is served by multiple upstreams (e.g. QuickNode + dRPC). Without pinning,
-            # eth_getBlockByNumber and eth_getLogs can hit different nodes and viem/ponder reports
-            # mismatched transactionIndex / logsBloom / transactionHash. Override if your canonical HL RPC is elsewhere.
-            directiveDefaults:
-              useUpstream: "upstream-quicknode"
           - architecture: evm
             evm:
               chainId: 42161
@@ -132,16 +127,22 @@ erpc:
               chainId: 84532
               fallbackFinalityDepth: 3
         upstreams:
-          - endpoint: quicknode://${QUICKNODE_MASTER_API_KEY}
-            id: upstream-quicknode
           - endpoint: drpc://${DRPC_API_KEY}
             id: upstream-drpc
           - endpoint: https://pharos-mainnet.g.alchemy.com/v2/${PHAROS_API_KEY}
             id: alchemy-pharos
             evm:
               chainId: 1672
-        # ignoreNetworks / multi-chain Alchemy + repository are configured on providers (not on upstream entries in eRPC 0.0.x).
+        # QuickNode: use the `providers` form so evm:999 can override the JSON-RPC URL to QuickNode’s /nanoreth Hyperliquid endpoint (built from QUICKNODE_API_NAME + QUICKNODE_API_KEY in global.erpcSecretName Secret).
         providers:
+          - id: quicknode
+            vendor: quicknode
+            upstreamIdTemplate: "upstream-quicknode-<EVM_CHAIN_ID>"
+            settings:
+              apiKey: ${QUICKNODE_MASTER_API_KEY}
+            overrides:
+              "evm:999":
+                endpoint: "https://${QUICKNODE_API_NAME}.quiknode.pro/${QUICKNODE_API_KEY}/nanoreth"
           - vendor: alchemy
             settings:
               apiKey: ${ALCHEMY_API_KEY}
