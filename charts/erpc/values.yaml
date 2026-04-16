@@ -70,7 +70,7 @@ erpc:
           failsafe:
             - matchMethod: "eth_getLogs"
               timeout:
-                duration: 60s
+                duration: 180s
               retry:
                 maxAttempts: 2
                 delay: 250ms
@@ -78,7 +78,7 @@ erpc:
               hedge: null
             - matchMethod: "*"
               timeout:
-                duration: 15s
+                duration: 30s
               retry:
                 maxAttempts: 2
                 delay: 250ms
@@ -107,13 +107,13 @@ erpc:
               fallbackFinalityDepth: 10
         # Dedicated upstreams; providers ignore only evm:999 here so it is not duplicated from QuickNode/Alchemy/dRPC pools.
         upstreams:
-          - endpoint: "https://${QUICKNODE_API_NAME}.quiknode.pro/${QUICKNODE_API_KEY}/nanoreth"
+          - endpoint: ${QUICKNODE_HYPE_RPC}
             evm:
               chainId: 999
-          - endpoint: "https://rpc.plume.org/${CONDUIT_API_KEY}"
+          - endpoint: https://rpc.plume.org/${CONDUIT_API_KEY}
             evm:
               chainId: 98866
-          - endpoint: "https://pharos-mainnet.g.alchemy.com/v2/${PHAROS_API_KEY}"
+          - endpoint: https://pharos-mainnet.g.alchemy.com/v2/${PHAROS_API_KEY}
             evm:
               chainId: 1672
         # QuickNode, Alchemy, and dRPC multi-chain upstreams are created from these vendors (no duplicate alchemy:// upstream needed).
