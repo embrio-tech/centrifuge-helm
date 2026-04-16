@@ -14,13 +14,10 @@ global:
 erpc:
   enabled: true
   replicaCount: 1
-
   image:
     repository: ghcr.io/erpc/erpc
     pullPolicy: IfNotPresent
-    # Pin to the eRPC version you run; `erpc.config` must match that binary's schema (default matches Chart appVersion).
     tag: "0.0.63"
-
   config:
     logLevel: info
     server:
