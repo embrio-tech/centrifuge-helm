@@ -105,7 +105,7 @@ erpc:
             evm:
               chainId: 98866
               fallbackFinalityDepth: 10
-        # Dedicated URLs for chains you do not want duplicated from provider lazy-load (see providers.ignoreNetworks).
+        # Dedicated upstreams; providers ignore only evm:999 here so it is not duplicated from QuickNode/Alchemy/dRPC pools.
         upstreams:
           - endpoint: "https://${QUICKNODE_API_NAME}.quiknode.pro/${QUICKNODE_API_KEY}/nanoreth"
             evm:
@@ -123,21 +123,16 @@ erpc:
               apiKey: ${QUICKNODE_MASTER_API_KEY}
             ignoreNetworks:
               - evm:999
-              - evm:98866
           - vendor: alchemy
             settings:
               apiKey: ${ALCHEMY_API_KEY}
             ignoreNetworks:
               - evm:999
-              - evm:1672
-              - evm:98866
           - vendor: drpc
             settings:
               apiKey: ${DRPC_API_KEY}
             ignoreNetworks:
               - evm:999
-              - evm:1672
-              - evm:98866
   # -- Override upstream RPC Secret name (defaults to global.erpcSecretName)
   secretName: ""
   # -- Override predeployed auth Secret name (defaults to global.erpcAuthSecretName)
