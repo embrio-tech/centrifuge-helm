@@ -105,21 +105,18 @@ erpc:
             evm:
               chainId: 98866
               fallbackFinalityDepth: 10
+        # Dedicated URLs for chains you do not want duplicated from provider lazy-load (see providers.ignoreNetworks).
         upstreams:
           - endpoint: "https://${QUICKNODE_API_NAME}.quiknode.pro/${QUICKNODE_API_KEY}/nanoreth"
-            id: upstream-hyperliquid-quicknode-nanoreth
             evm:
               chainId: 999
           - endpoint: "https://rpc.plume.org/${CONDUIT_API_KEY}"
-            id: upstream-plume-conduit
             evm:
               chainId: 98866
-          - endpoint: drpc://${DRPC_API_KEY}
-            id: upstream-drpc
           - endpoint: "https://pharos-mainnet.g.alchemy.com/v2/${PHAROS_API_KEY}"
-            id: alchemy-pharos
             evm:
               chainId: 1672
+        # QuickNode, Alchemy, and dRPC multi-chain upstreams are created from these vendors (no duplicate alchemy:// upstream needed).
         providers:
           - vendor: quicknode
             settings:
@@ -130,6 +127,13 @@ erpc:
           - vendor: alchemy
             settings:
               apiKey: ${ALCHEMY_API_KEY}
+            ignoreNetworks:
+              - evm:999
+              - evm:1672
+              - evm:98866
+          - vendor: drpc
+            settings:
+              apiKey: ${DRPC_API_KEY}
             ignoreNetworks:
               - evm:999
               - evm:1672
