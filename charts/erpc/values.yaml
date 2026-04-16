@@ -18,23 +18,12 @@ erpc:
   image:
     repository: ghcr.io/erpc/erpc
     pullPolicy: IfNotPresent
-    # Pin to your running eRPC (e.g. "0.0.63"); `erpc.config` keys must match that release’s schema.
-    tag: "latest"
+    # Pin to the eRPC version you run; `erpc.config` must match that binary's schema (default matches Chart appVersion).
+    tag: "0.0.63"
 
-  # -- eRPC config (erpc.yaml) as structured YAML so production can override subtrees (e.g. erpc.config.projects).
-  #   Legacy: set erpc.config to a single multiline string of YAML; chart still accepts that form.
-  #   Use ${VAR} from global.erpcSecretName (upstream). Auth API keys: global.erpcAuthSecretName + global.erpcAuthSecretKeys (injected as secret strategies); see global comments.
-  #   When redis.enabled + database.sharedState.enabled, chart appends database.sharedState (Redis) per
-  #   https://docs.erpc.cloud/config/database/shared-state
-  #   When database.evmJsonRpcCache.enabled + postgres.enabled, POSTGRES_CACHE_URI defaults to CloudNativePG
-  #   app secret `<cluster>-app` key `uri`. Override POSTGRES_CACHE_URI in the upstream Secret only if useCnpgAppSecret: false.
   config:
     logLevel: info
-    # Trust in-cluster hops (e.g. Traefik) so resolveRealClientIP reads X-Forwarded-For / X-Real-Ip before auth.
-    # Without server.trustedIPForwarders + trustedIPHeaders, ClientIP() stays as RemoteAddr (often a pod in 10.42.0.0/16) and project network.allowedCIDRs matches everyone.
-    # Align trustedIPForwarders with actual TCP peers to eRPC; project auth.network.trustedProxies is separate (eRPC docs vs server IP trust).
     server:
-      # Must be >= longest network-level failsafe timeout; default in erpc.dist.yaml is 50s.
       maxTimeout: 180s
       trustedIPForwarders:
         - 10.42.0.0/16
@@ -45,11 +34,6 @@ erpc:
         - X-Real-Ip
     projects:
       - id: main
-        # Auth (https://docs.erpc.cloud/config/auth): strategies are OR'd — satisfy network (in-cluster IP) OR secret (public).
-        # - Internal: call the ClusterIP Service; client IP is a pod IP → allowedCIDRs (override if your pod CIDR is not 10.42.0.0/16).
-        # - Public: use Ingress hostname; requires server.trustedIPForwarders/Headers so ClientIP() is the real IP; then network vs allowedCIDRs and/or secret strategies apply.
-        #   `type: secret` strategies are generated from global.erpcAuthSecretKeys (keys in global.erpcAuthSecretName); add keys there for more API keys (OR across strategies).
-        # Tighten trustedProxies if your ingress/proxy topology differs; too broad weakens IP-based checks.
         auth:
           strategies:
             - type: network
@@ -60,11 +44,8 @@ erpc:
                   - 192.168.42.0/24
                   - 10.42.0.0/16
                   - 10.43.0.0/16
-        # Applies to every network, including when traffic uses direct-provider upstreams (not only the peer eRPC).
         networkDefaults:
           failsafe:
-            # Network timeout is the full client request budget (including upstream retries).
-            # Cross-region → main eRPC + heavy eth_getLogs often exceeds 15s; list eth_getLogs first (first match wins).
             - matchMethod: "eth_getLogs"
               timeout:
                 duration: 180s
@@ -78,16 +59,14 @@ erpc:
               retry:
                 maxAttempts: 3
                 delay: 100ms
-              hedge: null # no hedging (avoids integrity issues from parallel upstreams)
+              hedge: null
           evm:
             getLogsSplitOnError: true
-            # Ponder/viem often request >1k blocks per eth_getLogs; too low rejects with "exceeded max allowed range".
             getLogsMaxAllowedRange: 10000
             getLogsSplitConcurrency: 4
             integrity:
               enforceHighestBlock: true
               enforceGetLogsBlockRange: true
-        # Merged into each upstream; important when selection falls through to QuickNode/dRPC/Alchemy/repository.
         upstreamDefaults:
           evm:
             statePollerInterval: 2s
@@ -108,7 +87,6 @@ erpc:
                 delay: 250ms
                 backoffFactor: 2
               hedge: null
-        # Per-chain tuning (EvmNetworkConfig): no statePollerInterval here - use upstreamDefaults / provider overrides (eRPC 0.0.x schema).
         networks:
           - architecture: evm
             evm:
@@ -131,12 +109,10 @@ erpc:
               chainId: 98866
               fallbackFinalityDepth: 10
         upstreams:
-          # Hyperliquid: explicit /nanoreth JSON-RPC (evm:999 on ignoreNetworks for quicknode provider below).
           - endpoint: "https://${QUICKNODE_API_NAME}.quiknode.pro/${QUICKNODE_API_KEY}/nanoreth"
             id: upstream-hyperliquid-quicknode-nanoreth
             evm:
               chainId: 999
-          # Plume mainnet (98866): Conduit-hosted RPC; dedicated upstream (not conduit:// provider).
           - endpoint: "https://rpc.plume.org/${CONDUIT_API_KEY}"
             id: upstream-plume-conduit
             evm:
@@ -147,7 +123,6 @@ erpc:
             id: alchemy-pharos
             evm:
               chainId: 1672
-        # Providers use ignoreNetworks for chains served by dedicated upstreams (999, 98866, 1672 pharos, …).
         providers:
           - vendor: quicknode
             settings:
@@ -162,7 +137,6 @@ erpc:
               - evm:999
               - evm:1672
               - evm:98866
-
   # -- Override upstream RPC Secret name (defaults to global.erpcSecretName)
   secretName: ""
   # -- Override predeployed auth Secret name (defaults to global.erpcAuthSecretName)
@@ -198,20 +172,9 @@ erpc:
       kubernetes.io/tls-acme: "true"
       traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
       nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    # Example when enabled (tls MUST live under ingress, with secretName + hosts per item — not erpc.tls, not a bare secret name):
-    # hosts:
-    #   - host: erpc.cfg.embrio.tech
-    #     paths:
-    #       - path: /
-    #         pathType: Prefix
-    # tls:
-    #   - secretName: cfg-api-erpc-tls
-    #     hosts:
-    #       - erpc.cfg.embrio.tech
     hosts: []
     tls: []
 
-  # -- Must be same or greater than server.maxTimeout in erpc.yaml
   terminationGracePeriodSeconds: 180
 
   startupProbe:
@@ -283,20 +246,12 @@ erpc:
       labels: {}
       scrapeTimeout: 10s
 
-  # Database integration (merged into erpc.yaml unless you already define the same keys).
   database:
-    # Shared state across replicas via Redis (recommended for HPA). Ignored if redis.enabled is false.
-    # With redis.auth.enabled, set REDIS_SHARED_STATE_URI in the upstream Secret (full redis://... URI).
     sharedState:
       enabled: true
-    # Persistent EVM JSON-RPC cache on PostgreSQL (see postgres.enabled). Uses CNPG app credentials by default.
     evmJsonRpcCache:
       enabled: false
-      # When true (default): POSTGRES_CACHE_URI from secret `<cnpg-cluster>-app`, key `uri` (same as CloudNative-PG app user).
-      # Set false to supply POSTGRES_CACHE_URI only via the upstream Secret (external Postgres).
       useCnpgAppSecret: true
-      # Postgres cache pool per eRPC pod (https://github.com/erpc/erpc/blob/main/common/config.go — PostgreSQLConnectorConfig).
-      # Keep (erpc.replicaCount * maxConns) well below postgres max_connections (see postgres.cluster.postgresql.parameters).
       postgresql:
         minConns: 2
         maxConns: 20

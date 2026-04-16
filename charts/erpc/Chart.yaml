@@ -3,7 +3,7 @@ name: erpc
 description: eRPC with optional Bitnami Redis (shared state) and CloudNative-PG (EVM cache)
 type: application
 version: 0.1.32
-appVersion: "latest"
+appVersion: "0.0.63"
 dependencies:
   - alias: postgres
     name: cluster
