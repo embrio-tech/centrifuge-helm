@@ -17,7 +17,7 @@ erpc:
   image:
     repository: ghcr.io/erpc/erpc
     pullPolicy: IfNotPresent
-    tag: "0.0.63"
+    tag: "latest"
   config:
     logLevel: info
     server:
