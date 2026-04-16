@@ -116,7 +116,7 @@ erpc:
               chainId: 98866
           - endpoint: drpc://${DRPC_API_KEY}
             id: upstream-drpc
-          - endpoint: https://pharos-mainnet.g.alchemy.com/v2/${PHAROS_API_KEY}
+          - endpoint: "https://pharos-mainnet.g.alchemy.com/v2/${PHAROS_API_KEY}"
             id: alchemy-pharos
             evm:
               chainId: 1672
