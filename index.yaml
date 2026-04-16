@@ -1886,6 +1886,27 @@ entries:
   erpc:
   - apiVersion: v2
     appVersion: 0.0.63
+    created: "2026-04-16T14:59:00.685759987Z"
+    dependencies:
+    - alias: postgres
+      condition: postgres.enabled
+      name: cluster
+      repository: https://cloudnative-pg.github.io/charts
+      version: 0.3.1
+    - condition: redis.enabled
+      name: redis
+      repository: https://charts.bitnami.com/bitnami
+      version: 25.3.5
+    description: eRPC with optional Bitnami Redis (shared state) and CloudNative-PG
+      (EVM cache)
+    digest: 6143595dc888b3f37a53dc454c95ee8b3cc426ecf926bd3e9a02cb42b34392ca
+    name: erpc
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/erpc-0.1.39/erpc-0.1.39.tgz
+    version: 0.1.39
+  - apiVersion: v2
+    appVersion: 0.0.63
     created: "2026-04-16T14:46:09.620471729Z"
     dependencies:
     - alias: postgres
@@ -2593,4 +2614,4 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/erpc-0.1.1/erpc-0.1.1.tgz
     version: 0.1.1
-generated: "2026-04-16T14:46:09.620764698Z"
+generated: "2026-04-16T14:59:00.686082302Z"
