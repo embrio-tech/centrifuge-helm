@@ -4,7 +4,7 @@ imagePullSecrets: []
 
 # Neither upstream nor auth Secrets are deployed by this chart. For migration you may point upstream and auth at the same Secret name(s).
 global:
-  # -- Existing Secret: upstream RPC provider keys and related infra (${VAR} in erpc.config), e.g. ALCHEMY_API_KEY, QUICKNODE_MASTER_API_KEY, QUICKNODE_API_NAME + QUICKNODE_API_KEY (Hyperliquid nanoreth URL), DRPC_API_KEY, PHAROS_API_KEY, REDIS_SHARED_STATE_URI, POSTGRES_CACHE_URI.
+  # -- Existing Secret: upstream RPC provider keys and related infra (${VAR} in erpc.config), e.g. ALCHEMY_API_KEY, QUICKNODE_MASTER_API_KEY, QUICKNODE_API_NAME + QUICKNODE_API_KEY (Hyperliquid nanoreth URL), CONDUIT_API_KEY (Plume rpc.plume.org path), DRPC_API_KEY, PHAROS_API_KEY, REDIS_SHARED_STATE_URI, POSTGRES_CACHE_URI.
   erpcSecretName: erpc-secrets
   # -- Predeployed Secret metadata.name holding auth values; keys below must exist as Secret data keys (become env vars for ${KEY} in eRPC config).
   erpcAuthSecretName: erpc-auth-secrets
@@ -108,7 +108,7 @@ erpc:
                 delay: 250ms
                 backoffFactor: 2
               hedge: null
-        # Per-chain tuning (EvmNetworkConfig): no statePollerInterval here — use upstreamDefaults / provider overrides (eRPC 0.0.x schema).
+        # Per-chain tuning (EvmNetworkConfig): no statePollerInterval here - use upstreamDefaults / provider overrides (eRPC 0.0.x schema).
         networks:
           - architecture: evm
             evm:
@@ -126,34 +126,48 @@ erpc:
             evm:
               chainId: 84532
               fallbackFinalityDepth: 3
+          - architecture: evm
+            evm:
+              chainId: 98866
+              fallbackFinalityDepth: 10
         upstreams:
+          # Hyperliquid: explicit /nanoreth JSON-RPC (evm:999 on ignoreNetworks for quicknode provider below).
+          - endpoint: "https://${QUICKNODE_API_NAME}.quiknode.pro/${QUICKNODE_API_KEY}/nanoreth"
+            id: upstream-hyperliquid-quicknode-nanoreth
+            evm:
+              chainId: 999
+          # Plume mainnet (98866): Conduit-hosted RPC; dedicated upstream (not conduit:// provider).
+          - endpoint: "https://rpc.plume.org/${CONDUIT_API_KEY}"
+            id: upstream-plume-conduit
+            evm:
+              chainId: 98866
           - endpoint: drpc://${DRPC_API_KEY}
             id: upstream-drpc
           - endpoint: https://pharos-mainnet.g.alchemy.com/v2/${PHAROS_API_KEY}
             id: alchemy-pharos
             evm:
               chainId: 1672
-        # QuickNode: use the `providers` form so evm:999 can override the JSON-RPC URL to QuickNode’s /nanoreth Hyperliquid endpoint (built from QUICKNODE_API_NAME + QUICKNODE_API_KEY in global.erpcSecretName Secret).
+        # Providers use ignoreNetworks for chains served by dedicated upstreams (999, 98866, 1672 pharos, …).
         providers:
-          - id: quicknode
-            vendor: quicknode
-            upstreamIdTemplate: "upstream-quicknode-<EVM_CHAIN_ID>"
+          - vendor: quicknode
             settings:
               apiKey: ${QUICKNODE_MASTER_API_KEY}
-            overrides:
-              "evm:999":
-                endpoint: "https://${QUICKNODE_API_NAME}.quiknode.pro/${QUICKNODE_API_KEY}/nanoreth"
+            ignoreNetworks:
+              - evm:999
+              - evm:98866
           - vendor: alchemy
             settings:
               apiKey: ${ALCHEMY_API_KEY}
             ignoreNetworks:
               - evm:999
               - evm:1672
+              - evm:98866
           - vendor: repository
             settings:
               repositoryUrl: https://evm-public-endpoints.erpc.cloud
             ignoreNetworks:
               - evm:999
+              - evm:98866
               - evm:8453
               - evm:42161
               - evm:84532
