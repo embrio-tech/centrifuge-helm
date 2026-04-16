@@ -114,6 +114,11 @@ erpc:
             evm:
               chainId: 999
               fallbackFinalityDepth: 17
+            # Hyperliquid is served by multiple upstreams (e.g. QuickNode + dRPC). Without pinning,
+            # eth_getBlockByNumber and eth_getLogs can hit different nodes and viem/ponder reports
+            # mismatched transactionIndex / logsBloom / transactionHash. Override if your canonical HL RPC is elsewhere.
+            directiveDefaults:
+              useUpstream: "upstream-quicknode"
           - architecture: evm
             evm:
               chainId: 42161
