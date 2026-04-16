@@ -72,5 +72,5 @@ metadata:
     {{- include "erpc.labels" . | nindent 4 }}
 data:
   erpc.yaml: |
-{{ toYaml $cfg | nindent 4 }}
+{{- toYaml $cfg | nindent 4 }}
 {{- end }}
