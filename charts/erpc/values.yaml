@@ -162,20 +162,6 @@ erpc:
               - evm:999
               - evm:1672
               - evm:98866
-          - vendor: repository
-            settings:
-              repositoryUrl: https://evm-public-endpoints.erpc.cloud
-            ignoreNetworks:
-              - evm:999
-              - evm:98866
-              - evm:8453
-              - evm:42161
-              - evm:84532
-            overrides:
-              "evm:1":
-                group: fallback
-                evm:
-                  statePollerInterval: 30s
 
   # -- Override upstream RPC Secret name (defaults to global.erpcSecretName)
   secretName: ""
