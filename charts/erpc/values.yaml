@@ -34,6 +34,8 @@ erpc:
     # Without server.trustedIPForwarders + trustedIPHeaders, ClientIP() stays as RemoteAddr (often a pod in 10.42.0.0/16) and project network.allowedCIDRs matches everyone.
     # Align trustedIPForwarders with actual TCP peers to eRPC; project auth.network.trustedProxies is separate (eRPC docs vs server IP trust).
     server:
+      # Must be >= longest network-level failsafe timeout; default in erpc.dist.yaml is 50s.
+      maxTimeout: 180s
       trustedIPForwarders:
         - 10.42.0.0/16
         - 10.43.0.0/16
@@ -61,9 +63,18 @@ erpc:
         # Applies to every network, including when traffic uses direct-provider upstreams (not only the peer eRPC).
         networkDefaults:
           failsafe:
+            # Network timeout is the full client request budget (including upstream retries).
+            # Cross-region → main eRPC + heavy eth_getLogs often exceeds 15s; list eth_getLogs first (first match wins).
+            - matchMethod: "eth_getLogs"
+              timeout:
+                duration: 180s
+              retry:
+                maxAttempts: 3
+                delay: 100ms
+              hedge: null
             - matchMethod: "*"
               timeout:
-                duration: 15s
+                duration: 30s
               retry:
                 maxAttempts: 3
                 delay: 100ms
@@ -81,9 +92,17 @@ erpc:
           evm:
             statePollerInterval: 2s
           failsafe:
+            - matchMethod: "eth_getLogs"
+              timeout:
+                duration: 60s
+              retry:
+                maxAttempts: 2
+                delay: 250ms
+                backoffFactor: 2
+              hedge: null
             - matchMethod: "*"
               timeout:
-                duration: 10s
+                duration: 15s
               retry:
                 maxAttempts: 2
                 delay: 250ms
