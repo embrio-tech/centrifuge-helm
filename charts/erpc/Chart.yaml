@@ -2,7 +2,7 @@ apiVersion: v2
 name: erpc
 description: eRPC with optional Bitnami Redis (shared state) and CloudNative-PG (EVM cache)
 type: application
-version: 0.1.33
+version: 0.1.34
 appVersion: "0.0.63"
 dependencies:
   - alias: postgres
