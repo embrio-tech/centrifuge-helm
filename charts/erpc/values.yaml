@@ -136,6 +136,8 @@ erpc:
           - vendor: alchemy
             settings:
               apiKey: ${ALCHEMY_API_KEY}
+            ignoreNetworks:
+              - evm:999
           - vendor: drpc
             settings:
               apiKey: ${DRPC_API_KEY}
