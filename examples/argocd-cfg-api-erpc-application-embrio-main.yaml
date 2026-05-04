@@ -1,0 +1,206 @@
+# Argo CD Application: mirrors cfg-api/cfg-api-erpc-config (erpc chart 0.1.43).
+# Secrets: cfg-api-v3-rpc-keys (${POSTGRES_CACHE_URI}, ${REDIS_SHARED_STATE_URI}, provider keys, …);
+# cfg-api-v3-auth-keys supplies ERPC_KEY_BETA (merged as a secret auth strategy via erpcAuthSecretKeys).
+# Optional: set spec.source.helm.releaseName to cfg-api-erpc if you rely on chart defaults that use Release.Name.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cfg-api-erpc-embrio-main
+  namespace: argocd
+spec:
+  project: cfg-api
+  source:
+    repoURL: https://embrio-tech.github.io/centrifuge-helm
+    targetRevision: "0.1.43"
+    chart: erpc
+    helm:
+      values: |
+        postgres:
+          enabled: true
+        global:
+          erpcSecretName: cfg-api-v3-rpc-keys
+          erpcAuthSecretName: cfg-api-v3-auth-keys
+          erpcAuthSecretKeys:
+            - ERPC_KEY_BETA
+        redis:
+          enabled: true
+        erpc:
+          replicaCount: 2
+          database:
+            evmJsonRpcCache:
+              enabled: true
+            sharedState:
+              enabled: true
+          ingress:
+            enabled: true
+            hosts:
+              - host: erpc.cfg.embrio.tech
+                paths:
+                  - path: /
+                    pathType: Prefix
+            tls:
+              - secretName: cfg-api-erpc-tls
+                hosts:
+                  - erpc.cfg.embrio.tech
+          config:
+            logLevel: info
+            database:
+              evmJsonRpcCache:
+                connectors:
+                  - driver: memory
+                    id: memory-cache
+                    memory:
+                      maxItems: 100000
+                  - driver: postgresql
+                    id: postgres-cache
+                    postgresql:
+                      connectionUri: ${POSTGRES_CACHE_URI}
+                      maxConns: 20
+                      minConns: 2
+                      table: rpc_cache
+                policies:
+                  - connector: memory-cache
+                    empty: ignore
+                    finality: realtime
+                    method: '*'
+                    network: '*'
+                    ttl: 2s
+                  - connector: memory-cache
+                    empty: ignore
+                    finality: unfinalized
+                    method: '*'
+                    network: '*'
+                    ttl: 10s
+                  - connector: memory-cache
+                    empty: ignore
+                    finality: unknown
+                    method: '*'
+                    network: '*'
+                    ttl: 0
+                  - connector: postgres-cache
+                    empty: allow
+                    finality: finalized
+                    method: '*'
+                    network: '*'
+                    ttl: 0
+              sharedState:
+                clusterKey: cfg-api-erpc
+                connector:
+                  driver: redis
+                  redis:
+                    uri: ${REDIS_SHARED_STATE_URI}
+                fallbackTimeout: 3s
+                lockMaxWait: 100ms
+                lockTtl: 3s
+                updateMaxWait: 50ms
+            server:
+              maxTimeout: 180s
+              trustedIPForwarders:
+                - 10.42.0.0/16
+                - 10.43.0.0/16
+                - 192.168.42.0/24
+              trustedIPHeaders:
+                - X-Forwarded-For
+                - X-Real-Ip
+            projects:
+              - id: main
+                auth:
+                  strategies:
+                    - type: network
+                      network:
+                        allowedCIDRs:
+                          - 10.42.0.0/16
+                        trustedProxies:
+                          - 192.168.42.0/24
+                          - 10.42.0.0/16
+                          - 10.43.0.0/16
+                networkDefaults:
+                  evm:
+                    getLogsMaxAllowedRange: 10000
+                    getLogsSplitConcurrency: 4
+                    getLogsSplitOnError: true
+                    integrity:
+                      enforceGetLogsBlockRange: true
+                      enforceHighestBlock: true
+                  failsafe:
+                    - hedge: null
+                      matchMethod: eth_getLogs
+                      retry:
+                        delay: 100ms
+                        maxAttempts: 3
+                      timeout:
+                        duration: 180s
+                    - hedge: null
+                      matchMethod: '*'
+                      retry:
+                        delay: 100ms
+                        maxAttempts: 3
+                      timeout:
+                        duration: 30s
+                networks:
+                  - architecture: evm
+                    evm:
+                      chainId: 999
+                      fallbackFinalityDepth: 40
+                  - architecture: evm
+                    evm:
+                      chainId: 42161
+                      fallbackFinalityDepth: 20
+                  - architecture: evm
+                    evm:
+                      chainId: 8453
+                      fallbackFinalityDepth: 3
+                  - architecture: evm
+                    evm:
+                      chainId: 84532
+                      fallbackFinalityDepth: 3
+                  - architecture: evm
+                    evm:
+                      chainId: 98866
+                      fallbackFinalityDepth: 10
+                providers:
+                  - ignoreNetworks:
+                      - evm:999
+                    settings:
+                      apiKey: ${QUICKNODE_MASTER_API_KEY}
+                    vendor: quicknode
+                  - settings:
+                      apiKey: ${ALCHEMY_API_KEY}
+                    vendor: alchemy
+                  - settings:
+                      apiKey: ${DRPC_API_KEY}
+                    vendor: drpc
+                upstreamDefaults:
+                  evm:
+                    statePollerInterval: 2s
+                  failsafe:
+                    - hedge: null
+                      matchMethod: eth_getLogs
+                      retry:
+                        backoffFactor: 2
+                        delay: 250ms
+                        maxAttempts: 2
+                      timeout:
+                        duration: 180s
+                    - hedge: null
+                      matchMethod: '*'
+                      retry:
+                        backoffFactor: 2
+                        delay: 250ms
+                        maxAttempts: 2
+                      timeout:
+                        duration: 30s
+                upstreams:
+                  - endpoint: ${QUICKNODE_HYPE_RPC}/evm
+                    evm:
+                      chainId: 999
+                  - endpoint: https://rpc.plume.org/${CONDUIT_API_KEY}
+                    evm:
+                      chainId: 98866
+                  - endpoint: https://pharos-mainnet.g.alchemy.com/v2/${PHAROS_API_KEY}
+                    evm:
+                      chainId: 1672
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cfg-api

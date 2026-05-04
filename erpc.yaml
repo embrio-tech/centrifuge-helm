@@ -1,0 +1,174 @@
+database:
+  evmJsonRpcCache:
+    connectors:
+      - driver: memory
+        id: memory-cache
+        memory:
+          maxItems: 100000
+      - driver: postgresql
+        id: postgres-cache
+        postgresql:
+          connectionUri: ${POSTGRES_CACHE_URI}
+          maxConns: 20
+          minConns: 2
+          table: rpc_cache
+    policies:
+      - connector: memory-cache
+        empty: ignore
+        finality: realtime
+        method: '*'
+        network: '*'
+        ttl: 2s
+      - connector: memory-cache
+        empty: ignore
+        finality: unfinalized
+        method: '*'
+        network: '*'
+        ttl: 10s
+      - connector: memory-cache
+        empty: ignore
+        finality: unknown
+        method: '*'
+        network: '*'
+        ttl: 0
+      - connector: postgres-cache
+        empty: allow
+        finality: finalized
+        method: '*'
+        network: '*'
+        ttl: 0
+  sharedState:
+    clusterKey: cfg-api-erpc
+    connector:
+      driver: redis
+      redis:
+        uri: ${REDIS_SHARED_STATE_URI}
+    fallbackTimeout: 3s
+    lockMaxWait: 100ms
+    lockTtl: 3s
+    updateMaxWait: 50ms
+logLevel: info
+projects:
+  - auth:
+      strategies:
+        - network:
+            allowedCIDRs:
+              - 10.42.0.0/16
+            trustedProxies:
+              - 192.168.42.0/24
+              - 10.42.0.0/16
+              - 10.43.0.0/16
+          type: network
+        - secret:
+            value: ${ERPC_KEY_BETA}
+          type: secret
+    id: main
+    networkDefaults:
+      evm:
+        getLogsMaxAllowedRange: 10000
+        getLogsSplitConcurrency: 4
+        getLogsSplitOnError: true
+        integrity:
+          enforceGetLogsBlockRange: true
+          enforceHighestBlock: true
+      failsafe:
+        - hedge: null
+          matchMethod: eth_getLogs
+          retry:
+            delay: 100ms
+            maxAttempts: 3
+          timeout:
+            duration: 180s
+        - hedge: null
+          matchMethod: '*'
+          retry:
+            delay: 100ms
+            maxAttempts: 3
+          timeout:
+            duration: 30s
+    upstreamDefaults:
+      evm:
+        statePollerInterval: 2s
+      failsafe:
+        - hedge: null
+          matchMethod: eth_getLogs
+          retry:
+            backoffFactor: 2
+            delay: 250ms
+            maxAttempts: 2
+          timeout:
+            duration: 180s
+        - hedge: null
+          matchMethod: '*'
+          retry:
+            backoffFactor: 2
+            delay: 250ms
+            maxAttempts: 2
+          timeout:
+            duration: 15s
+    networks:
+      - architecture: evm
+        evm:
+          chainId: 999
+          fallbackFinalityDepth: 17
+      - architecture: evm
+        evm:
+          chainId: 42161
+          fallbackFinalityDepth: 20
+      - architecture: evm
+        evm:
+          chainId: 8453
+          fallbackFinalityDepth: 3
+      - architecture: evm
+        evm:
+          chainId: 84532
+          fallbackFinalityDepth: 3
+      - architecture: evm
+        evm:
+          chainId: 98866
+          fallbackFinalityDepth: 10
+    upstreams:
+      - endpoint: '${QUICKNODE_HYPE_RPC}/evm'
+        evm:
+          chainId: 999
+          nodeType: full
+          maxAvailableRecentBlocks: 1024
+      - endpoint: '${QUICKNODE_HYPE_RPC}/nanoreth'
+        evm:
+          chainId: 999
+          nodeType: archive
+          blockAvailability:
+            upper:
+              latestBlockMinus: 1024
+              probe: blockHeader
+      - endpoint: 'https://rpc.plume.org/${CONDUIT_API_KEY}'
+        evm:
+          chainId: 98866
+      - endpoint: "https://pharos-mainnet.g.alchemy.com/v2/${PHAROS_API_KEY}"
+        evm:
+          chainId: 1672
+    providers:
+      - vendor: quicknode
+        settings:
+          apiKey: ${QUICKNODE_MASTER_API_KEY}
+        ignoreNetworks:
+          - evm:999
+      - vendor: alchemy
+        settings:
+          apiKey: ${ALCHEMY_API_KEY}
+        ignoreNetworks:
+          - evm:999
+      - vendor: drpc
+        settings:
+          apiKey: ${DRPC_API_KEY}
+        ignoreNetworks:
+          - evm:999
+server:
+  maxTimeout: 180s
+  trustedIPForwarders:
+    - 10.42.0.0/16
+    - 10.43.0.0/16
+    - 192.168.42.0/24
+  trustedIPHeaders:
+    - X-Forwarded-For
+    - X-Real-Ip
