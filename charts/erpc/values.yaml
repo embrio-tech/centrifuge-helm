@@ -293,6 +293,11 @@ postgres:
     storage:
       size: 128Gi
       storageClass: "ceph-perf3"
+    # Separate WAL PVC (CNPG cluster chart). Default 1Gi fills quickly under eRPC cache writes.
+    walStorage:
+      enabled: true
+      size: 32Gi
+      storageClass: "ceph-perf3"
     resources:
       requests:
         cpu: 500m
