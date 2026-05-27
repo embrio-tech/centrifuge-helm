@@ -32,7 +32,7 @@ database:
         network: '*'
         ttl: 0
       - connector: postgres-cache
-        empty: allow
+        empty: ignore
         finality: finalized
         method: '*'
         network: '*'

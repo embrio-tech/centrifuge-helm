@@ -12,12 +12,20 @@ spec:
   project: cfg-api
   source:
     repoURL: https://embrio-tech.github.io/centrifuge-helm
-    targetRevision: "0.1.43"
+    targetRevision: "0.1.44"
     chart: erpc
     helm:
       values: |
         postgres:
           enabled: true
+          cluster:
+            storage:
+              size: 192Gi
+              storageClass: ceph-perf3
+            walStorage:
+              enabled: true
+              size: 32Gi
+              storageClass: ceph-perf3
         global:
           erpcSecretName: cfg-api-v3-rpc-keys
           erpcAuthSecretName: cfg-api-v3-auth-keys
@@ -79,7 +87,7 @@ spec:
                     network: '*'
                     ttl: 0
                   - connector: postgres-cache
-                    empty: allow
+                    empty: ignore
                     finality: finalized
                     method: '*'
                     network: '*'

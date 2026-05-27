@@ -291,11 +291,13 @@ postgres:
   cluster:
     instances: 1
     storage:
+      # WAL shares this PVC when walStorage.enabled is false. Raise size (and expand the PVC) if CNPG reports low WAL disk space.
       size: 128Gi
       storageClass: "ceph-perf3"
-    # Separate WAL PVC (CNPG cluster chart). Default 1Gi fills quickly under eRPC cache writes.
+    # Separate WAL PVC (postgres.cluster.walStorage). Once enabled on a live Cluster, CNPG rejects disabling it —
+    # keep enabled: true and only change size/storageClass. New clusters may start with enabled: false (WAL on data PVC).
     walStorage:
-      enabled: true
+      enabled: false
       size: 32Gi
       storageClass: "ceph-perf3"
     resources:

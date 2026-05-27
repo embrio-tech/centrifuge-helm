@@ -48,7 +48,7 @@ policies:
   - network: "*"
     method: "*"
     finality: finalized
-    empty: allow
+    empty: ignore
     connector: postgres-cache
     ttl: 0
 {{- end }}
