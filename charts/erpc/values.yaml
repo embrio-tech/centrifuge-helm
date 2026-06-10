@@ -314,3 +314,6 @@ postgres:
         # eRPC-only (e.g. 2 pods × evmJsonRpcCache.postgresql.maxConns 20 ≈ 40) + CNPG/metrics headroom.
         # Raise if you add replicas, other apps, or still see SQLSTATE 53300.
         max_connections: "150"
+        max_slot_wal_keep_size: "4GB"   # CNPG-recommended safety valve
+        max_wal_size: "2GB"
+        checkpoint_timeout: "15min"
