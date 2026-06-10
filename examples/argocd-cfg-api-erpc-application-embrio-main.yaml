@@ -54,44 +54,6 @@ spec:
           config:
             logLevel: info
             database:
-              evmJsonRpcCache:
-                connectors:
-                  - driver: memory
-                    id: memory-cache
-                    memory:
-                      maxItems: 100000
-                  - driver: postgresql
-                    id: postgres-cache
-                    postgresql:
-                      connectionUri: ${POSTGRES_CACHE_URI}
-                      maxConns: 20
-                      minConns: 2
-                      table: rpc_cache
-                policies:
-                  - connector: memory-cache
-                    empty: ignore
-                    finality: realtime
-                    method: '*'
-                    network: '*'
-                    ttl: 2s
-                  - connector: memory-cache
-                    empty: ignore
-                    finality: unfinalized
-                    method: '*'
-                    network: '*'
-                    ttl: 10s
-                  - connector: memory-cache
-                    empty: ignore
-                    finality: unknown
-                    method: '*'
-                    network: '*'
-                    ttl: 0
-                  - connector: postgres-cache
-                    empty: ignore
-                    finality: finalized
-                    method: '*'
-                    network: '*'
-                    ttl: 0
               sharedState:
                 clusterKey: cfg-api-erpc
                 connector:
@@ -126,11 +88,11 @@ spec:
                 networkDefaults:
                   evm:
                     getLogsMaxAllowedRange: 10000
-                    getLogsSplitConcurrency: 4
+                    getLogsSplitConcurrency: 16
                     getLogsSplitOnError: true
-                    integrity:
-                      enforceGetLogsBlockRange: true
-                      enforceHighestBlock: true
+                  directiveDefaults:
+                    enforceGetLogsBlockRange: true
+                    enforceHighestBlock: true
                   failsafe:
                     - hedge: null
                       matchMethod: eth_getLogs
@@ -158,11 +120,11 @@ spec:
                   - architecture: evm
                     evm:
                       chainId: 8453
-                      fallbackFinalityDepth: 3
+                      fallbackFinalityDepth: 10
                   - architecture: evm
                     evm:
                       chainId: 84532
-                      fallbackFinalityDepth: 3
+                      fallbackFinalityDepth: 10
                   - architecture: evm
                     evm:
                       chainId: 98866

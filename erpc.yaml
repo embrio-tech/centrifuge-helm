@@ -4,7 +4,12 @@ database:
       - driver: memory
         id: memory-cache
         memory:
-          maxItems: 100000
+          maxItems: 200000
+          maxTotalSize: 1GB
+        failsafeForGets:
+          - matchMethod: "*"
+            timeout:
+              duration: 50ms
       - driver: postgresql
         id: postgres-cache
         postgresql:
@@ -12,6 +17,12 @@ database:
           maxConns: 20
           minConns: 2
           table: rpc_cache
+          getTimeout: 2s
+          setTimeout: 5s
+        failsafeForGets:
+          - matchMethod: "*"
+            timeout:
+              duration: 100ms
     policies:
       - connector: memory-cache
         empty: ignore
@@ -20,15 +31,39 @@ database:
         network: '*'
         ttl: 2s
       - connector: memory-cache
+        empty: allow
+        finality: unfinalized
+        method: eth_getLogs
+        network: '*'
+        ttl: 30s
+      - connector: memory-cache
         empty: ignore
         finality: unfinalized
         method: '*'
         network: '*'
         ttl: 10s
-      - connector: memory-cache
+      - connector: postgres-cache
         empty: ignore
         finality: unknown
         method: '*'
+        network: '*'
+        ttl: 0
+      - connector: postgres-cache
+        empty: allow
+        finality: finalized
+        method: eth_getLogs
+        network: '*'
+        ttl: 0
+      - connector: postgres-cache
+        empty: allow
+        finality: finalized
+        method: eth_call
+        network: '*'
+        ttl: 0
+      - connector: postgres-cache
+        empty: ignore
+        finality: finalized
+        method: eth_getBlockByNumber
         network: '*'
         ttl: 0
       - connector: postgres-cache
@@ -66,11 +101,11 @@ projects:
     networkDefaults:
       evm:
         getLogsMaxAllowedRange: 10000
-        getLogsSplitConcurrency: 4
+        getLogsSplitConcurrency: 16
         getLogsSplitOnError: true
-        integrity:
-          enforceGetLogsBlockRange: true
-          enforceHighestBlock: true
+      directiveDefaults:
+        enforceGetLogsBlockRange: true
+        enforceHighestBlock: true
       failsafe:
         - hedge: null
           matchMethod: eth_getLogs
@@ -118,11 +153,11 @@ projects:
       - architecture: evm
         evm:
           chainId: 8453
-          fallbackFinalityDepth: 3
+          fallbackFinalityDepth: 10
       - architecture: evm
         evm:
           chainId: 84532
-          fallbackFinalityDepth: 3
+          fallbackFinalityDepth: 10
       - architecture: evm
         evm:
           chainId: 98866

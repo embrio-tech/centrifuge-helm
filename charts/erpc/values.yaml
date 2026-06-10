@@ -60,10 +60,13 @@ erpc:
           evm:
             getLogsSplitOnError: true
             getLogsMaxAllowedRange: 10000
-            getLogsSplitConcurrency: 4
-            integrity:
-              enforceHighestBlock: true
-              enforceGetLogsBlockRange: true
+            getLogsSplitConcurrency: 16
+          directiveDefaults:
+            enforceHighestBlock: true
+            enforceGetLogsBlockRange: true
+            validateLogsBloomMatch: 
+            validateTransactionIndex: true
+            enforceLogIndexStrictIncrements: true
         upstreamDefaults:
           evm:
             statePollerInterval: 2s
@@ -96,11 +99,11 @@ erpc:
           - architecture: evm
             evm:
               chainId: 8453
-              fallbackFinalityDepth: 3
+              fallbackFinalityDepth: 10
           - architecture: evm
             evm:
               chainId: 84532
-              fallbackFinalityDepth: 3
+              fallbackFinalityDepth: 10
           - architecture: evm
             evm:
               chainId: 98866
@@ -110,16 +113,9 @@ erpc:
           - endpoint: ${QUICKNODE_HYPE_RPC}/evm
             evm:
               chainId: 999
-              nodeType: full
-              maxAvailableRecentBlocks: 1024
-          - endpoint: ${QUICKNODE_HYPE_RPC}/nanoreth
+          - endpoint: 'https://hyperliquid-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}' #evm
             evm:
               chainId: 999
-              nodeType: archive
-              blockAvailability:
-                upper:
-                  latestBlockMinus: 1024
-                  probe: blockHeader
           - endpoint: https://rpc.plume.org/${CONDUIT_API_KEY}
             evm:
               chainId: 98866
@@ -256,9 +252,14 @@ erpc:
     evmJsonRpcCache:
       enabled: false
       useCnpgAppSecret: true
+      memory:
+        maxItems: 200000
+        maxTotalSize: 1GB
       postgresql:
         minConns: 2
         maxConns: 20
+        getTimeout: 2s
+        setTimeout: 5s
 
 # -- Bitnami Redis — shared state backend per https://docs.erpc.cloud/config/database/shared-state
 #   Service: `<release-name>-redis-master:6379`
