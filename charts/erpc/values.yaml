@@ -297,7 +297,7 @@ postgres:
     # Separate WAL PVC (postgres.cluster.walStorage). Once enabled on a live Cluster, CNPG rejects disabling it —
     # keep enabled: true and only change size/storageClass. New clusters may start with enabled: false (WAL on data PVC).
     walStorage:
-      enabled: false
+      enabled: true
       size: 32Gi
       storageClass: "ceph-perf3"
     resources:
