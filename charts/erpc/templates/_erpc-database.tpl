@@ -45,21 +45,29 @@ connectors:
         timeout:
           duration: 100ms
 policies:
-  # --- eth_getLogs: empty results only (negative cache for historical indexing) ---
+  # --- eth_getLogs: tip = memory negative cache only; history = full Postgres archive ---
   - network: "*"
     method: eth_getLogs
     finality: unfinalized
-    empty: only          # cache [] only; non-empty logs never written
+    empty: only          # cache [] only near head; non-empty logs always live
     connector: memory-cache
-    ttl: 30s
+    ttl: 30s             # ~15× Base block time; adjust per chain if needed
   - network: "*"
     method: eth_getLogs
     finality: finalized
-    empty: only          # historical empty ranges — forever in Postgres
+    empty: allow         # cache empty AND non-empty — safe once finalized
     connector: postgres-cache
     ttl: 0
 
-  # --- Realtime: safe methods only (no getBlockByNumber, no getLogs) ---
+  # --- eth_getBlockByNumber: finalized only (never eternal near tip) ---
+  - network: "*"
+    method: eth_getBlockByNumber
+    finality: finalized
+    empty: allow
+    connector: postgres-cache
+    ttl: 0
+
+  # --- Realtime: short TTL, no logs/blocks ---
   - network: "*"
     method: "eth_getBlockByHash|eth_getBlockReceipts|eth_getTransactionByHash|eth_getTransactionReceipt|eth_call"
     finality: realtime
@@ -67,7 +75,7 @@ policies:
     connector: memory-cache
     ttl: 2s
 
-  # --- Unfinalized: same allowlist ---
+  # --- Unfinalized: same allowlist, short TTL ---
   - network: "*"
     method: "eth_getBlockByHash|eth_getBlockReceipts|eth_getTransactionByHash|eth_getTransactionReceipt|eth_call"
     finality: unfinalized
@@ -83,11 +91,11 @@ policies:
     connector: postgres-cache
     ttl: 0
 
-  # --- Finalized archive (still no getBlockByNumber, no non-empty getLogs) ---
+  # --- Finalized archive ---
   - network: "*"
     method: eth_call
     finality: finalized
-    empty: allow           # keep if you want empty eth_call negative cache
+    empty: allow
     connector: postgres-cache
     ttl: 0
   - network: "*"
