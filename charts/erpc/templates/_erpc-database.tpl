@@ -45,50 +45,53 @@ connectors:
         timeout:
           duration: 100ms
 policies:
+  # --- eth_getLogs: empty results only (negative cache for historical indexing) ---
   - network: "*"
-    method: "*"
+    method: eth_getLogs
+    finality: unfinalized
+    empty: only          # cache [] only; non-empty logs never written
+    connector: memory-cache
+    ttl: 30s
+  - network: "*"
+    method: eth_getLogs
+    finality: finalized
+    empty: only          # historical empty ranges — forever in Postgres
+    connector: postgres-cache
+    ttl: 0
+
+  # --- Realtime: safe methods only (no getBlockByNumber, no getLogs) ---
+  - network: "*"
+    method: "eth_getBlockByHash|eth_getBlockReceipts|eth_getTransactionByHash|eth_getTransactionReceipt|eth_call"
     finality: realtime
     empty: ignore
     connector: memory-cache
     ttl: 2s
+
+  # --- Unfinalized: same allowlist ---
   - network: "*"
-    method: eth_getLogs
-    finality: unfinalized
-    empty: allow
-    connector: memory-cache
-    ttl: 30s
-  - network: "*"
-    method: "*"
+    method: "eth_getBlockByHash|eth_getBlockReceipts|eth_getTransactionByHash|eth_getTransactionReceipt|eth_call"
     finality: unfinalized
     empty: ignore
     connector: memory-cache
     ttl: 10s
+
+  # --- Unknown finality (tx-hash keyed lookups) ---
   - network: "*"
-    method: "*"
+    method: "eth_getTransactionByHash|eth_getTransactionReceipt"
     finality: unknown
     empty: ignore
     connector: postgres-cache
     ttl: 0
-  - network: "*"
-    method: eth_getLogs
-    finality: finalized
-    empty: allow
-    connector: postgres-cache
-    ttl: 0
+
+  # --- Finalized archive (still no getBlockByNumber, no non-empty getLogs) ---
   - network: "*"
     method: eth_call
     finality: finalized
-    empty: allow
+    empty: allow           # keep if you want empty eth_call negative cache
     connector: postgres-cache
     ttl: 0
   - network: "*"
-    method: eth_getBlockByNumber
-    finality: finalized
-    empty: ignore
-    connector: postgres-cache
-    ttl: 0
-  - network: "*"
-    method: "*"
+    method: "eth_getBlockByHash|eth_getBlockReceipts|eth_getTransactionByHash|eth_getTransactionReceipt"
     finality: finalized
     empty: ignore
     connector: postgres-cache

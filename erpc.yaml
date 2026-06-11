@@ -24,53 +24,56 @@ database:
             timeout:
               duration: 100ms
     policies:
-      - connector: memory-cache
-        empty: ignore
-        finality: realtime
-        method: '*'
-        network: '*'
-        ttl: 2s
-      - connector: memory-cache
-        empty: allow
-        finality: unfinalized
+      # --- eth_getLogs: empty results only (negative cache for historical indexing) ---
+      - network: "*"
         method: eth_getLogs
-        network: '*'
+        finality: unfinalized
+        empty: only          # cache [] only; non-empty logs never written
+        connector: memory-cache
         ttl: 30s
-      - connector: memory-cache
-        empty: ignore
-        finality: unfinalized
-        method: '*'
-        network: '*'
-        ttl: 10s
-      - connector: postgres-cache
-        empty: ignore
-        finality: unknown
-        method: '*'
-        network: '*'
-        ttl: 0
-      - connector: postgres-cache
-        empty: allow
-        finality: finalized
+      - network: "*"
         method: eth_getLogs
-        network: '*'
-        ttl: 0
-      - connector: postgres-cache
-        empty: allow
         finality: finalized
+        empty: only          # historical empty ranges — forever in Postgres
+        connector: postgres-cache
+        ttl: 0
+
+      # --- Realtime: safe methods only (no getBlockByNumber, no getLogs) ---
+      - network: "*"
+        method: "eth_getBlockByHash|eth_getBlockReceipts|eth_getTransactionByHash|eth_getTransactionReceipt|eth_call"
+        finality: realtime
+        empty: ignore
+        connector: memory-cache
+        ttl: 2s
+
+      # --- Unfinalized: same allowlist ---
+      - network: "*"
+        method: "eth_getBlockByHash|eth_getBlockReceipts|eth_getTransactionByHash|eth_getTransactionReceipt|eth_call"
+        finality: unfinalized
+        empty: ignore
+        connector: memory-cache
+        ttl: 10s
+
+      # --- Unknown finality (tx-hash keyed lookups) ---
+      - network: "*"
+        method: "eth_getTransactionByHash|eth_getTransactionReceipt"
+        finality: unknown
+        empty: ignore
+        connector: postgres-cache
+        ttl: 0
+
+      # --- Finalized archive (still no getBlockByNumber, no non-empty getLogs) ---
+      - network: "*"
         method: eth_call
-        network: '*'
-        ttl: 0
-      - connector: postgres-cache
-        empty: ignore
         finality: finalized
-        method: eth_getBlockByNumber
-        network: '*'
+        empty: allow           # keep if you want empty eth_call negative cache
+        connector: postgres-cache
         ttl: 0
-      - connector: postgres-cache
-        empty: ignore
+      - network: "*"
+        method: "eth_getBlockByHash|eth_getBlockReceipts|eth_getTransactionByHash|eth_getTransactionReceipt"
         finality: finalized
-        method: '*'
-        network: '*'
+        empty: ignore
+        connector: postgres-cache
         ttl: 0
   sharedState:
     clusterKey: cfg-api-erpc
