@@ -1,212 +1,188 @@
-database:
-  evmJsonRpcCache:
-    connectors:
-      - driver: memory
-        id: memory-cache
-        memory:
-          maxItems: 200000
-          maxTotalSize: 1GB
-        failsafeForGets:
-          - matchMethod: "*"
-            timeout:
-              duration: 50ms
-      - driver: postgresql
-        id: postgres-cache
-        postgresql:
-          connectionUri: ${POSTGRES_CACHE_URI}
-          maxConns: 20
-          minConns: 2
-          table: rpc_cache
-          getTimeout: 2s
-          setTimeout: 5s
-        failsafeForGets:
-          - matchMethod: "*"
-            timeout:
-              duration: 100ms
-    policies:
-      # --- eth_getLogs: empty results only (negative cache for historical indexing) ---
-      - network: "*"
-        method: eth_getLogs
-        finality: unfinalized
-        empty: only          # cache [] only; non-empty logs never written
-        connector: memory-cache
-        ttl: 30s
-      - network: "*"
-        method: eth_getLogs
-        finality: finalized
-        empty: only          # historical empty ranges — forever in Postgres
-        connector: postgres-cache
-        ttl: 0
-
-      # --- Realtime: safe methods only (no getBlockByNumber, no getLogs) ---
-      - network: "*"
-        method: "eth_getBlockByHash|eth_getBlockReceipts|eth_getTransactionByHash|eth_getTransactionReceipt|eth_call"
-        finality: realtime
-        empty: ignore
-        connector: memory-cache
-        ttl: 2s
-
-      # --- Unfinalized: same allowlist ---
-      - network: "*"
-        method: "eth_getBlockByHash|eth_getBlockReceipts|eth_getTransactionByHash|eth_getTransactionReceipt|eth_call"
-        finality: unfinalized
-        empty: ignore
-        connector: memory-cache
-        ttl: 10s
-
-      # --- Unknown finality (tx-hash keyed lookups) ---
-      - network: "*"
-        method: "eth_getTransactionByHash|eth_getTransactionReceipt"
-        finality: unknown
-        empty: ignore
-        connector: postgres-cache
-        ttl: 0
-
-      # --- Finalized archive (still no getBlockByNumber, no non-empty getLogs) ---
-      - network: "*"
-        method: eth_call
-        finality: finalized
-        empty: allow           # keep if you want empty eth_call negative cache
-        connector: postgres-cache
-        ttl: 0
-      - network: "*"
-        method: "eth_getBlockByHash|eth_getBlockReceipts|eth_getTransactionByHash|eth_getTransactionReceipt"
-        finality: finalized
-        empty: ignore
-        connector: postgres-cache
-        ttl: 0
-  sharedState:
-    clusterKey: cfg-api-erpc
-    connector:
-      driver: redis
+project: cfg-api
+source:
+  repoURL: https://embrio-tech.github.io/centrifuge-helm
+  targetRevision: 0.1.50
+  helm:
+    values: |
+      postgres:
+        enabled: true
+        cluster:
+          instances: 1
+      global:
+        erpcSecretName: cfg-api-v3-rpc-keys
+        erpcAuthSecretName: cfg-api-v3-auth-keys
+        erpcAuthSecretKeys:
+          - ERPC_KEY_BETA
       redis:
-        uri: ${REDIS_SHARED_STATE_URI}
-    fallbackTimeout: 3s
-    lockMaxWait: 100ms
-    lockTtl: 3s
-    updateMaxWait: 50ms
-logLevel: info
-projects:
-  - auth:
-      strategies:
-        - network:
-            allowedCIDRs:
-              - 10.42.0.0/16
-            trustedProxies:
-              - 192.168.42.0/24
+        enabled: true
+      erpc:
+        replicaCount: 3
+        database:
+          evmJsonRpcCache:
+            enabled: true
+        ingress:
+          enabled: true
+          hosts:
+            - host: erpc.cfg.embrio.tech
+              paths:
+                - path: /
+                  pathType: Prefix
+          tls:
+            - secretName: cfg-api-erpc-tls
+              hosts:
+                - erpc.cfg.embrio.tech
+        config:
+          logLevel: info
+          server:
+            maxTimeout: 180s
+            trustedIPForwarders:
               - 10.42.0.0/16
               - 10.43.0.0/16
-          type: network
-        - secret:
-            value: ${ERPC_KEY_BETA}
-          type: secret
-    id: main
-    networkDefaults:
-      evm:
-        getLogsMaxAllowedRange: 10000
-        getLogsSplitConcurrency: 16
-        getLogsSplitOnError: true
-      directiveDefaults:
-        enforceGetLogsBlockRange: true
-        enforceHighestBlock: true
-      failsafe:
-        - hedge: null
-          matchMethod: eth_getLogs
-          retry:
-            delay: 100ms
-            maxAttempts: 3
-          timeout:
-            duration: 180s
-        - hedge: null
-          matchMethod: '*'
-          retry:
-            delay: 100ms
-            maxAttempts: 3
-          timeout:
-            duration: 30s
-    upstreamDefaults:
-      evm:
-        statePollerInterval: 2s
-      failsafe:
-        - hedge: null
-          matchMethod: eth_getLogs
-          retry:
-            backoffFactor: 2
-            delay: 250ms
-            maxAttempts: 2
-          timeout:
-            duration: 180s
-        - hedge: null
-          matchMethod: '*'
-          retry:
-            backoffFactor: 2
-            delay: 250ms
-            maxAttempts: 2
-          timeout:
-            duration: 15s
-    networks:
-      - architecture: evm
-        evm:
-          chainId: 999
-          fallbackFinalityDepth: 17
-      - architecture: evm
-        evm:
-          chainId: 42161
-          fallbackFinalityDepth: 20
-      - architecture: evm
-        evm:
-          chainId: 8453
-          fallbackFinalityDepth: 10
-      - architecture: evm
-        evm:
-          chainId: 84532
-          fallbackFinalityDepth: 10
-      - architecture: evm
-        evm:
-          chainId: 98866
-          fallbackFinalityDepth: 10
-    upstreams:
-      - endpoint: '${QUICKNODE_HYPE_RPC}/evm'
-        evm:
-          chainId: 999
-          nodeType: full
-          maxAvailableRecentBlocks: 1024
-      - endpoint: '${QUICKNODE_HYPE_RPC}/nanoreth'
-        evm:
-          chainId: 999
-          nodeType: archive
-          blockAvailability:
-            upper:
-              latestBlockMinus: 1024
-              probe: blockHeader
-      - endpoint: 'https://rpc.plume.org/${CONDUIT_API_KEY}'
-        evm:
-          chainId: 98866
-      - endpoint: "https://pharos-mainnet.g.alchemy.com/v2/${PHAROS_API_KEY}"
-        evm:
-          chainId: 1672
-    providers:
-      - vendor: quicknode
-        settings:
-          apiKey: ${QUICKNODE_MASTER_API_KEY}
-        ignoreNetworks:
-          - evm:999
-      - vendor: alchemy
-        settings:
-          apiKey: ${ALCHEMY_API_KEY}
-        ignoreNetworks:
-          - evm:999
-      - vendor: drpc
-        settings:
-          apiKey: ${DRPC_API_KEY}
-        ignoreNetworks:
-          - evm:999
-server:
-  maxTimeout: 180s
-  trustedIPForwarders:
-    - 10.42.0.0/16
-    - 10.43.0.0/16
-    - 192.168.42.0/24
-  trustedIPHeaders:
-    - X-Forwarded-For
-    - X-Real-Ip
+              - 192.168.42.0/24
+            trustedIPHeaders:
+              - X-Forwarded-For
+              - X-Real-Ip
+          projects:
+            - id: main
+              auth:
+                strategies:
+                  - type: network
+                    network:
+                      allowedCIDRs:
+                        - 10.42.0.0/16
+                      trustedProxies:
+                        - 192.168.42.0/24
+                        - 10.42.0.0/16
+                        - 10.43.0.0/16
+              networkDefaults:
+                failsafe:
+                  - matchMethod: "eth_getLogs"
+                    timeout:
+                      duration: 180s
+                    retry:
+                      maxAttempts: 3
+                      delay: 0ms
+                    hedge: null
+                  - matchMethod: "*"
+                    timeout:
+                      duration: 30s
+                    retry:
+                      maxAttempts: 3
+                      delay: 100ms
+                    hedge: null
+                evm:
+                  getLogsSplitOnError: true
+                  getLogsMaxAllowedRange: 10000
+                  getLogsSplitConcurrency: 4
+                directiveDefaults:
+                  enforceHighestBlock: true
+                  enforceGetLogsBlockRange: true
+                  validateLogsBloomMatch: 
+                  validateTransactionIndex: true
+                  enforceLogIndexStrictIncrements: true
+              upstreamDefaults:
+                evm:
+                  statePollerInterval: 2s
+                failsafe:
+                  - matchMethod: "eth_getLogs"
+                    timeout:
+                      duration: 180s
+                    retry:
+                      maxAttempts: 2
+                      delay: 250ms
+                      backoffFactor: 2
+                    hedge: null
+                  - matchMethod: "*"
+                    timeout:
+                      duration: 30s
+                    retry:
+                      maxAttempts: 2
+                      delay: 250ms
+                      backoffFactor: 2
+                    hedge: null
+              networks:
+                - architecture: evm
+                  evm:
+                    chainId: 999
+                    fallbackFinalityDepth: 40
+                - architecture: evm
+                  evm:
+                    chainId: 42161
+                    fallbackFinalityDepth: 20
+                - architecture: evm
+                  evm:
+                    chainId: 8453
+                    fallbackFinalityDepth: 10
+                - architecture: evm
+                  evm:
+                    chainId: 84532
+                    fallbackFinalityDepth: 10
+                - architecture: evm
+                  evm:
+                    chainId: 98866
+                    fallbackFinalityDepth: 10
+              upstreams:
+                - endpoint: '${QUICKNODE_HYPE_RPC}/evm' #nanoreth
+                  evm:
+                    chainId: 999
+                - endpoint: 'https://hyperliquid-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}' #evm
+                  evm:
+                    chainId: 999
+                - endpoint: https://rpc.plume.org/${CONDUIT_API_KEY}
+                  evm:
+                    chainId: 98866
+                - endpoint: https://pharos-mainnet.g.alchemy.com/v2/${PHAROS_API_KEY}
+                  evm:
+                    chainId: 1672
+                - id: monad-historical
+                  endpoint: https://rpc-mainnet.monadinfra.com
+                  evm:
+                    chainId: 143
+                  allowMethods:
+                    - eth_call
+              providers:
+                - vendor: quicknode
+                  settings:
+                    apiKey: ${QUICKNODE_MASTER_API_KEY}
+                  ignoreNetworks:
+                    - evm:999
+                  overrides:
+                    "evm:143":
+                      ignoreMethods:
+                        - eth_call
+                    "evm:*":
+                      routing:
+                        scoreMultipliers:
+                          - network: ""
+                            method: ""
+                            overall: 1
+                - vendor: alchemy
+                  settings:
+                    apiKey: ${ALCHEMY_API_KEY}
+                  overrides:
+                    "evm:143":
+                      ignoreMethods:
+                        - eth_call
+                    "evm:*":
+                      routing:
+                        scoreMultipliers:
+                          - network: ""
+                            method: ""
+                            overall: 0.33
+                - vendor: drpc
+                  settings:
+                    apiKey: ${DRPC_API_KEY}
+                  overrides:
+                    "evm:143":
+                      ignoreMethods:
+                        - eth_call
+                    "evm:*":
+                      routing:
+                        scoreMultipliers:
+                          - network: ""
+                            method: ""
+                            overall: 1
+  chart: erpc
+destination:
+  server: https://kubernetes.default.svc
+  namespace: cfg-api
