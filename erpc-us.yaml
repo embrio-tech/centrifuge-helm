@@ -7,16 +7,20 @@ source:
       postgres:
         enabled: true
         cluster:
-          instances: 1
+          storage:
+            storageClass: perf3
+          walStorage:
+            storageClass: perf3
       global:
         erpcSecretName: cfg-api-v3-rpc-keys
-        erpcAuthSecretName: cfg-api-v3-auth-keys
-        erpcAuthSecretKeys:
-          - ERPC_KEY_BETA
+        erpcAuthSecretName: cfg-api-v3-erpc-auth-keys
       redis:
         enabled: true
+        master:
+          persistence:
+            storageClass: perf3
       erpc:
-        replicaCount: 3
+        replicaCount: 2
         image:
           tag: "0.0.64"
         database:
@@ -25,14 +29,14 @@ source:
         ingress:
           enabled: true
           hosts:
-            - host: erpc.cfg.embrio.tech
+            - host: erpc.cfg-us.embrio.tech
               paths:
                 - path: /
                   pathType: Prefix
           tls:
-            - secretName: cfg-api-erpc-tls
+            - secretName: cfg-api-erpc-us-tls
               hosts:
-                - erpc.cfg.embrio.tech
+                - erpc.cfg-us.embrio.tech
         config:
           logLevel: info
           server:
@@ -217,11 +221,11 @@ source:
                 - architecture: evm
                   evm:
                     chainId: 8453
-                    fallbackFinalityDepth: 10
+                    fallbackFinalityDepth: 3
                 - architecture: evm
                   evm:
                     chainId: 84532
-                    fallbackFinalityDepth: 10
+                    fallbackFinalityDepth: 3
                 - architecture: evm
                   evm:
                     chainId: 98866
@@ -363,5 +367,5 @@ source:
                             overall: 1
   chart: erpc
 destination:
-  server: https://kubernetes.default.svc
   namespace: cfg-api
+  name: beta

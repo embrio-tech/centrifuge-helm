@@ -148,10 +148,32 @@ query:
   affinity: {}
 
 cacheJob:
-  enabled: false
+  enabled: true
   annotations: {}
   backoffLimit: 0
-  ttlSecondsAfterFinished: 300
+  ttlSecondsAfterFinished: 86400
+  activeDeadlineSeconds: 7200
+  serviceAccountName: ""
+  imagePullSecrets: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  env: []
+  envFrom: []
+
+syncInvalidateFactoriesJob:
+  enabled: true
+  annotations: {}
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  activeDeadlineSeconds: 7200
   serviceAccountName: ""
   imagePullSecrets: []
   resources:

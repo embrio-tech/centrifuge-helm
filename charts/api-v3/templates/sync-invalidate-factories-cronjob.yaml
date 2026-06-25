@@ -1,0 +1,98 @@
+{{- if .Values.syncInvalidateFactoriesJob.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "centrifuge-api.fullname" . }}-sync-invalidate-factories
+  labels:
+    {{- include "centrifuge-api.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sync-invalidate-factories
+  {{- with .Values.syncInvalidateFactoriesJob.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  schedule: "0 0 1 1 *"
+  timeZone: UTC
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include "centrifuge-api.labels" . | nindent 8 }}
+        app.kubernetes.io/component: sync-invalidate-factories
+    spec:
+      backoffLimit: {{ .Values.syncInvalidateFactoriesJob.backoffLimit }}
+      {{- if .Values.syncInvalidateFactoriesJob.ttlSecondsAfterFinished }}
+      ttlSecondsAfterFinished: {{ .Values.syncInvalidateFactoriesJob.ttlSecondsAfterFinished }}
+      {{- end }}
+      activeDeadlineSeconds: {{ .Values.syncInvalidateFactoriesJob.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "centrifuge-api.labels" . | nindent 12 }}
+            app.kubernetes.io/component: sync-invalidate-factories
+        spec:
+          restartPolicy: Never
+          {{- if .Values.syncInvalidateFactoriesJob.serviceAccountName }}
+          serviceAccountName: {{ .Values.syncInvalidateFactoriesJob.serviceAccountName }}
+          {{- end }}
+          {{- with .Values.syncInvalidateFactoriesJob.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: sync-invalidate-factories
+              image: "{{ .Values.indexer.image.repository }}:{{ .Values.indexer.image.tag | default "latest" }}"
+              imagePullPolicy: {{ .Values.indexer.image.pullPolicy }}
+              command:
+                - node
+                - scripts/sync-invalidate-factories.mjs
+                - --yes
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.global.dbSecretName | default (printf "%s-postgres-app" .Release.Name) }}
+                      key: uri
+              envFrom:
+                - configMapRef:
+                    name: {{ .Release.Name }}-config
+              {{- with .Values.syncInvalidateFactoriesJob.env }}
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with .Values.syncInvalidateFactoriesJob.envFrom }}
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with .Values.syncInvalidateFactoriesJob.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+          {{- with .Values.syncInvalidateFactoriesJob.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.syncInvalidateFactoriesJob.affinity }}
+          affinity:
+            {{- toYaml .Values.syncInvalidateFactoriesJob.affinity | nindent 12 }}
+          {{- else if .Values.postgres.enabled }}
+          affinity:
+            podAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  podAffinityTerm:
+                    topologyKey: {{ .Values.postgres.cluster.affinity.topologyKey | quote }}
+                    labelSelector:
+                      matchExpressions:
+                        - key: cnpg.io/cluster
+                          operator: In
+                          values:
+                            - {{ printf "%s-postgres" (include "centrifuge-api.fullname" .) | quote }}
+          {{- end }}
+          {{- with .Values.syncInvalidateFactoriesJob.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}
