@@ -76,7 +76,20 @@ indexer:
   affinity: {}
   env: []
   envFrom: []
-    
+
+# Long-running debug pod with the same env/resources as the indexer.
+# kubectl exec -it deploy/<release>-cli -c cli -- sh
+cli:
+  enabled: false
+  replicaCount: 1
+  nameOverride: ""
+  fullnameOverride: ""
+  command:
+    - sleep
+    - infinity
+  podAnnotations: {}
+  podLabels: {}
+
 query:
   enabled: true
   replicaCount: 1
