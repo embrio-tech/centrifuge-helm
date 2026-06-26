@@ -1225,6 +1225,22 @@ entries:
   centrifuge-api-v3:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2026-06-26T08:51:17.618293186Z"
+    dependencies:
+    - alias: postgres
+      condition: postgres.enabled
+      name: cluster
+      repository: https://cloudnative-pg.github.io/charts
+      version: 0.3.1
+    description: Helm chart for Centrifuge API v3 ponder based indexer for EVM chains
+    digest: c60cd437f859a6ae0f61b30403d1435608bf5c39cae57f5f352cf8ac946f89f5
+    name: centrifuge-api-v3
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v3-0.1.35/centrifuge-api-v3-0.1.35.tgz
+    version: 0.1.35
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2026-06-25T14:12:46.972817927Z"
     dependencies:
     - alias: postgres
@@ -2909,4 +2925,4 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/erpc-0.1.1/erpc-0.1.1.tgz
     version: 0.1.1
-generated: "2026-06-25T14:12:46.973130471Z"
+generated: "2026-06-26T08:51:17.618637547Z"
