@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "centrifuge-api.fullname" . }}-sync-invalidate-factories
+  name: {{ include "centrifuge-api.fullname" . }}-sync-factory
   labels:
     {{- include "centrifuge-api.labels" . | nindent 4 }}
     app.kubernetes.io/component: sync-invalidate-factories
