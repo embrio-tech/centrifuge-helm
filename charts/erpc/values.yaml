@@ -293,13 +293,13 @@ postgres:
     instances: 1
     storage:
       # WAL shares this PVC when walStorage.enabled is false. Raise size (and expand the PVC) if CNPG reports low WAL disk space.
-      size: 192Gi
+      size: 256Gi
       storageClass: "ceph-perf3"
     # Separate WAL PVC (postgres.cluster.walStorage). Once enabled on a live Cluster, CNPG rejects disabling it —
     # keep enabled: true and only change size/storageClass. New clusters may start with enabled: false (WAL on data PVC).
     walStorage:
       enabled: true
-      size: 32Gi
+      size: 64Gi
       storageClass: "ceph-perf3"
     resources:
       requests:
@@ -316,5 +316,6 @@ postgres:
         # Raise if you add replicas, other apps, or still see SQLSTATE 53300.
         max_connections: "150"
         max_slot_wal_keep_size: "4GB"   # CNPG-recommended safety valve
-        max_wal_size: "2GB"
-        checkpoint_timeout: "15min"
+        # Slightly higher WAL budget + longer checkpoint window for better write throughput.
+        max_wal_size: "4GB"
+        checkpoint_timeout: "20min"
