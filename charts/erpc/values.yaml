@@ -281,9 +281,10 @@ redis:
     resources:
       requests:
         cpu: 100m
-        memory: 256Mi
+        memory: 2Gi
       limits:
-        memory: 512Mi
+        cpu: "2"
+        memory: 2Gi
 
 # -- CloudNative-PG. With evmJsonRpcCache, eRPC reads `uri` from `<clusterfullname>-app` (operator-managed).
 #   Optional: set cluster.initdb.database (e.g. erpc_cache) on *new* clusters to isolate the cache DB.
@@ -304,10 +305,10 @@ postgres:
     resources:
       requests:
         cpu: 500m
-        memory: 4Gi
+        memory: 8Gi
       limits:
-        cpu: "2"
-        memory: 4Gi
+        cpu: "4"
+        memory: 8Gi
     affinity:
       topologyKey: topology.cinder.csi.openstack.org/zone
     postgresql:
