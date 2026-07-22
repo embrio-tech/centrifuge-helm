@@ -1,7 +1,7 @@
 project: cfg-api
 source:
   repoURL: https://embrio-tech.github.io/centrifuge-helm
-  targetRevision: 0.1.50
+  targetRevision: 0.1.53
   helm:
     values: |
       postgres:
@@ -153,16 +153,22 @@ source:
                             : list;
 
                         let activeLive = [];
+                        let activePrimary = null;
                         if (primary && isHealthy(primary)) {
                           activeLive = withFallback([primary], fallback);
+                          activePrimary = primary;
                         } else if (fallback && isHealthy(fallback)) {
                           activeLive = withFallback([fallback], primary);
+                          activePrimary = fallback;
                         } else if (primary) {
                           activeLive = withFallback([primary], fallback);
+                          activePrimary = primary;
                         } else if (fallback) {
                           activeLive = withFallback([fallback], primary);
+                          activePrimary = fallback;
                         } else if (live.length > 0) {
                           activeLive = [live[0]];
+                          activePrimary = live[0];
                         }
 
                         const blockOrLogMethod =
@@ -173,8 +179,13 @@ source:
                         // === HYPERLIQUID LIVE MODE (default) ===
                         // QN /evm primary; Alchemy second in pool (full HL history, failover on QN errors).
                         // Nanoreth excluded from block/log: getLogs({ blockHash }) skips blockAvailability on 0.0.64.
+                        // Block + logs must come from ONE upstream: returning a single-element list (no fallback
+                        // in the pool) prevents erpc from serving the block from /evm and logs from /alchemy
+                        // (or vice-versa), which viem rejects as log.transactionIndex vs block.transactions mismatch.
+                        // The chosen upstream is stable for evalInterval (15s); if it errors the request fails
+                        // and Ponder retries against the same upstream — preferable to silent cross-provider mixing.
                         if (blockOrLogMethod) {
-                          return activeLive;
+                          return activePrimary ? [activePrimary] : [];
                         }
 
                         // === HYPERLIQUID BACKFILL MODE ===
@@ -253,6 +264,7 @@ source:
                       - overall: 1
                   evm:
                     chainId: 999
+                    getLogsAutoSplittingRangeThreshold: 1000
                     blockAvailability:
                       lower:
                         latestBlockMinus: 180000
@@ -304,6 +316,7 @@ source:
                       - overall: 1
                   evm:
                     chainId: 999
+                    getLogsAutoSplittingRangeThreshold: 1000
                     blockAvailability:
                       upper:
                         latestBlockMinus: 0
