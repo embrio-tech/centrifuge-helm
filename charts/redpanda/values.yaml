@@ -1,0 +1,67 @@
+nameOverride: ""
+fullnameOverride: ""
+
+# -- Redpanda subchart overrides. Service names collapse to `redpanda` because the
+# subchart fullname equals the release name when `fullnameOverride: redpanda`.
+# Bootstrap Jobs and downstream apps reference `redpanda:9093` (Kafka) and
+# `http://redpanda:8081` (Schema Registry).
+redpanda:
+  fullnameOverride: redpanda
+  statefulset:
+    replicas: 3
+  auth:
+    sasl:
+      enabled: false           # handlers have no SASL support; plaintext in-cluster only
+  tls:
+    enabled: false             # handlers have no TLS support
+  listeners:
+    kafka:
+      port: 9093
+    schemaRegistry:
+      enabled: true
+      port: 8081
+    admin:
+      port: 9644
+  storage:
+    persistentVolume:
+      enabled: true
+      size: 100Gi
+      storageClass: "ceph-perf3"   # us cluster: perf3
+  resources:
+    cpu:
+      cores: 2
+    memory:
+      container:
+        max: 4Gi
+      redpanda:
+        memory: 2Gi
+        reserveMemory: 1Gi
+  console:
+    enabled: true
+    ingress:
+      enabled: false             # enable per environment; traefik + tls-acme annotations
+
+# -- Bootstrap Jobs run as Helm post-install/post-upgrade hooks.
+bootstrap:
+  # -- Topic bootstrap. Creates the protocol-events topics for each network with
+  # 1 partition and RF 3 (handlers assume single-partition topics; do not raise).
+  # `cfg-cli reconcile-topics` hardcodes RF 1, so topics are created with rpk here.
+  topics:
+    enabled: true
+    image:
+      repository: docker.redpanda.com/redpandadata/redpanda
+      tag: ""                    # default: same redpanda version as the subchart appVersion
+    partitions: 1
+    replicas: 3
+    networks:
+      - mainnet
+      - testnet
+  # -- Schema bootstrap. Registers protobuf subjects `<topic>-value` for both
+  # networks via `cfg-cli events schemas update`. Requires the cfg-cli image
+  # prerequisite (see PLAN section 2); disable with `bootstrap.schemas.enabled=false`
+  # until that lands.
+  schemas:
+    enabled: true
+    image:
+      repository: ghcr.io/centrifuge/event-lake
+      tag: "latest"

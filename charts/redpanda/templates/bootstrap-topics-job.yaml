@@ -1,0 +1,40 @@
+{{- if .Values.bootstrap.topics.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "centrifuge-redpanda.fullname" . }}-bootstrap-topics
+  labels:
+    {{- include "centrifuge-redpanda.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "0"
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "centrifuge-redpanda.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: rpk
+          # Default tag matches the pinned redpanda subchart appVersion (v26.1.14).
+          # Update this default when bumping the subchart dependency.
+          image: "{{ .Values.bootstrap.topics.image.repository }}:{{ .Values.bootstrap.topics.image.tag | default "v26.1.14" }}"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              BROKERS="redpanda:9093"
+              for NET in {{ range .Values.bootstrap.topics.networks }}{{ . }} {{ end }}; do
+                for T in "${NET}.protocol-events.speculative" "${NET}.protocol-events.confirmed" "${NET}.protocol-events-dlq"; do
+                  if ! rpk topic list --brokers "$BROKERS" | grep -qx "$T"; then
+                    EXTRA=""
+                    case "$T" in *speculative) EXTRA="-c cleanup.policy=compact";; esac
+                    rpk topic create "$T" --brokers "$BROKERS" -p {{ .Values.bootstrap.topics.partitions }} -r {{ .Values.bootstrap.topics.replicas }} $EXTRA
+                  fi
+                done
+              done
+{{- end }}

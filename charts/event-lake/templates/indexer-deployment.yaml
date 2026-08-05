@@ -1,0 +1,122 @@
+{{- if .Values.indexer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "centrifuge-event-lake.indexer.fullname" . }}
+  labels:
+    {{- include "centrifuge-event-lake.indexer.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.indexer.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "centrifuge-event-lake.indexer.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.indexer.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "centrifuge-event-lake.indexer.labels" . | nindent 8 }}
+        {{- with .Values.indexer.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.indexer.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.indexer.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: indexer
+          {{- with .Values.indexer.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.indexer.image.repository }}:{{ .Values.indexer.image.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.indexer.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.indexer.service.port }}
+              protocol: TCP
+          {{- with .Values.indexer.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.indexer.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.indexer.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.indexer.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.indexer.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: ENVIO_PG_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.dbSecretName | default (printf "%s-postgres-app" .Release.Name) }}
+                  key: host
+            - name: ENVIO_PG_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.dbSecretName | default (printf "%s-postgres-app" .Release.Name) }}
+                  key: port
+            - name: ENVIO_PG_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.dbSecretName | default (printf "%s-postgres-app" .Release.Name) }}
+                  key: username
+            - name: ENVIO_PG_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.dbSecretName | default (printf "%s-postgres-app" .Release.Name) }}
+                  key: dbname
+            - name: ENVIO_PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.dbSecretName | default (printf "%s-postgres-app" .Release.Name) }}
+                  key: password
+            - name: REDPANDA_CLIENT_ID
+              value: {{ printf "envio-origination-%s" .Release.Name | quote }}
+          {{- with .Values.indexer.env }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-config
+            - secretRef:
+                name: {{ .Values.global.apiSecretName | default (printf "%s-secrets" .Release.Name) }}
+          {{- with .Values.indexer.envFrom }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.indexer.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.indexer.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.indexer.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.indexer.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

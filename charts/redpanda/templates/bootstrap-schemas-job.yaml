@@ -1,0 +1,36 @@
+{{- if .Values.bootstrap.schemas.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "centrifuge-redpanda.fullname" . }}-bootstrap-schemas
+  labels:
+    {{- include "centrifuge-redpanda.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "1"
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "centrifuge-redpanda.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: cfg-cli
+          image: "{{ .Values.bootstrap.schemas.image.repository }}:{{ .Values.bootstrap.schemas.image.tag | default "latest" }}"
+          env:
+            - name: REDPANDA_BROKERS
+              value: "redpanda:9093"
+            - name: REDPANDA_SCHEMA_REGISTRY_URL
+              value: "http://redpanda:8081"
+            - name: REDPANDA_CLIENT_ID
+              value: "cfg-cli"
+          command:
+            - node
+            - packages/cfg-cli/dist/index.js
+            - events
+            - schemas
+            - update
+{{- end }}

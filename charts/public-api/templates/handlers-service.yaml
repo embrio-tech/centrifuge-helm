@@ -1,0 +1,17 @@
+{{- if .Values.handlers.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "centrifuge-public-api.handlers.fullname" . }}
+  labels:
+    {{- include "centrifuge-public-api.handlers.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.handlers.service.type }}
+  ports:
+    - port: {{ .Values.handlers.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "centrifuge-public-api.handlers.selectorLabels" . | nindent 4 }}
+{{- end }}

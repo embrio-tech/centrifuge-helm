@@ -1,0 +1,38 @@
+# Argo CD Application: event-lake indexer for mainnet (eu main cluster).
+# Namespace: cfg-event-lake. Sync wave 1 (after Redpanda topics/schemas).
+#
+# Required pre-deployed Secret `event-lake-mainnet-secrets` (in cfg-event-lake namespace):
+#   - ENVIO_RPC_URL_<chainId> for every chain in SELECTED_NETWORKS (1,10,56,143,999,1672,8453,42161,43114,98866)
+#   - ENVIO_API_TOKEN (optional, HyperSync)
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: event-lake-mainnet
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: cfg-api
+  source:
+    repoURL: https://embrio-tech.github.io/centrifuge-helm
+    targetRevision: "0.1.0"
+    chart: centrifuge-event-lake
+    helm:
+      releaseName: event-lake-mainnet
+      values: |
+        global:
+          env:
+            CFG_NETWORK: "mainnet"
+            SELECTED_NETWORKS: "1,10,56,143,999,1672,8453,42161,43114,98866"
+        indexer:
+          image:
+            tag: "<PINNED_TAG>"            # e.g. sha-xxxxxxx or semver; never latest in prod
+        postgres:
+          enabled: true
+          cluster:
+            storage:
+              storageClass: ceph-perf3
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cfg-event-lake

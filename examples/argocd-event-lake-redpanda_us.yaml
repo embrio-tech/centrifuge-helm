@@ -1,0 +1,45 @@
+# Argo CD Application: Redpanda cluster for the event-lake / public-api stack (us cluster beta).
+# Namespace: cfg-event-lake. Shared by mainnet and testnet (topics are network-prefixed).
+# Sync wave 0: must finish before event-lake and public-api (wave 1) so topics/schemas exist.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: redpanda-us
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: cfg-api
+  source:
+    repoURL: https://embrio-tech.github.io/centrifuge-helm
+    targetRevision: "0.1.0"
+    chart: centrifuge-redpanda
+    helm:
+      releaseName: redpanda
+      values: |
+        redpanda:
+          storage:
+            persistentVolume:
+              storageClass: perf3
+          console:
+            enabled: true
+            ingress:
+              enabled: true
+              className: traefik
+              annotations:
+                kubernetes.io/tls-acme: "true"
+                traefik.ingress.kubernetes.io/router.entrypoints: websecure
+                nginx.ingress.kubernetes.io/ssl-redirect: "true"
+              hosts:
+                - host: redpanda.cfg-us.embrio.tech
+                  paths:
+                    - path: /
+                      pathType: Prefix
+              tls:
+                - secretName: redpanda-cfg-us-embrio-tech-tls
+                  hosts:
+                    - redpanda.cfg-us.embrio.tech
+  destination:
+    name: beta
+    namespace: cfg-event-lake
