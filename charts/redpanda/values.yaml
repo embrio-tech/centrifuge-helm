@@ -16,6 +16,67 @@ redpanda:
   fullnameOverride: ""
   statefulset:
     replicas: 3
+    # Shared OpenStack workers are not CPU-exclusive. Seastar busy-polling
+    # without this fights other pods for CPU.
+    additionalRedpandaCmdFlags:
+      - "--overprovisioned"
+    # Chart 26.x ignores statefulset.initContainers.*.resources and
+    # sideCars.configWatcher.resources. Patch by container name so every
+    # container has matching requests and limits (Guaranteed QoS). Without
+    # that, init/sidecar are BestEffort and get OOM-killed first under
+    # node pressure. Only list containers the chart actually emits:
+    # mergeSliceBy appends unknown names as empty containers (no image).
+    # `tuning` is omitted while tune_aio_events is false.
+    podTemplate:
+      spec:
+        containers:
+          - name: sidecar
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 100m
+                memory: 128Mi
+        initContainers:
+          - name: redpanda-configurator
+            resources:
+              requests:
+                cpu: 250m
+                memory: 512Mi
+              limits:
+                cpu: 250m
+                memory: 512Mi
+          - name: bootstrap-yaml-envsubst
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 100m
+                memory: 256Mi
+  # Upstream hardcodes this init at 125Mi, which OOMs the operator binary.
+  post_install_job:
+    podTemplate:
+      spec:
+        initContainers:
+          - name: bootstrap-yaml-envsubst
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 100m
+                memory: 256Mi
+        containers:
+          - name: post-install
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 100m
+                memory: 256Mi
   auth:
     sasl:
       enabled: false           # handlers have no SASL support; plaintext in-cluster only
@@ -54,15 +115,17 @@ redpanda:
       enabled: true
       size: 100Gi
       storageClass: "ceph-perf3"   # us cluster: perf3
+  # 2 cores is the Redpanda minimum. Container min=max so the broker is
+  # Guaranteed QoS. Do not set memory.redpanda.*: that pins --memory /
+  # --reserve-memory and disables the chart's 80% heap calculation.
+  # 5Gi is 2.5Gi per core, so Redpanda still gets 2Gi/core after overhead.
   resources:
     cpu:
       cores: 2
     memory:
       container:
-        max: 4Gi
-      redpanda:
-        memory: 2Gi
-        reserveMemory: 1Gi
+        min: 5Gi
+        max: 5Gi
   # -- Privileged aio tuner. Off by default (OpenStack worker nodes often reject
   # privileged init containers). Enable per cluster if the node image allows it.
   tuning:
@@ -80,6 +143,13 @@ redpanda:
       auto_create_topics_enabled: false
   console:
     enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 100m
+        memory: 256Mi
     ingress:
       enabled: false             # enable per environment; traefik + tls-acme annotations
     monitoring:
@@ -110,8 +180,8 @@ bootstrap:
       - testnet
     resources:
       requests:
-        cpu: 50m
-        memory: 128Mi
+        cpu: 200m
+        memory: 256Mi
       limits:
         cpu: 200m
         memory: 256Mi
