@@ -30,14 +30,16 @@ redpanda:
     podTemplate:
       spec:
         containers:
+          # redpanda-operator (supervisor + broker probe). 128Mi OOMs it
+          # in ~10s; the binary's idle RSS is already above that.
           - name: sidecar
             resources:
               requests:
-                cpu: 100m
-                memory: 128Mi
+                cpu: 250m
+                memory: 512Mi
               limits:
-                cpu: 100m
-                memory: 128Mi
+                cpu: 250m
+                memory: 512Mi
         initContainers:
           - name: redpanda-configurator
             resources:
