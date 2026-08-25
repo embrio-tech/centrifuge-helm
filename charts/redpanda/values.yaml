@@ -105,8 +105,10 @@ redpanda:
       external:
         default:
           enabled: false
+    # Pandaproxy (HTTP Kafka API). Unused: handlers speak Kafka on 9093.
+    # Leave off; it shares the broker process and eats the cgroup leftover.
     http:
-      enabled: true
+      enabled: false
       external:
         default:
           enabled: false
@@ -115,17 +117,20 @@ redpanda:
       enabled: true
       size: 100Gi
       storageClass: "ceph-perf3"   # us cluster: perf3
-  # 2 cores is the Redpanda minimum. Container min=max so the broker is
-  # Guaranteed QoS. Do not set memory.redpanda.*: that pins --memory /
-  # --reserve-memory and disables the chart's 80% heap calculation.
-  # 5Gi is 2.5Gi per core, so Redpanda still gets 2Gi/core after overhead.
+  # 2 cores is the Redpanda minimum. Container min=max for Guaranteed QoS.
+  # Chart default is 80% of the cgroup as --memory. That left ~800Mi in a
+  # 5Gi box after heap+reserve; Schema Registry (same process) then OOM-killed
+  # the broker. Pin the Seastar heap at 2Gi/core and keep ~3Gi cgroup slack.
   resources:
     cpu:
       cores: 2
     memory:
       container:
-        min: 5Gi
-        max: 5Gi
+        min: 8Gi
+        max: 8Gi
+      redpanda:
+        memory: 4Gi
+        reserveMemory: 1Gi
   # -- Privileged aio tuner. Off by default (OpenStack worker nodes often reject
   # privileged init containers). Enable per cluster if the node image allows it.
   tuning:
