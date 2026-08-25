@@ -5,32 +5,59 @@ metadata:
   name: {{ include "centrifuge-redpanda.fullname" . }}-bootstrap-schemas
   labels:
     {{- include "centrifuge-redpanda.labels" . | nindent 4 }}
+    app.kubernetes.io/component: bootstrap-schemas
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
     "helm.sh/hook-weight": "1"
 spec:
   backoffLimit: 3
+  activeDeadlineSeconds: {{ add (int (.Values.bootstrap.wait.timeoutSeconds | default 300)) 180 }}
   template:
     metadata:
       labels:
         {{- include "centrifuge-redpanda.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: bootstrap-schemas
     spec:
       restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: cfg-cli
           image: "{{ .Values.bootstrap.schemas.image.repository }}:{{ .Values.bootstrap.schemas.image.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.bootstrap.schemas.pullPolicy | default "IfNotPresent" }}
+          {{- with .Values.bootstrap.schemas.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           env:
             - name: REDPANDA_BROKERS
-              value: "redpanda:9093"
+              value: {{ include "centrifuge-redpanda.brokers" . | quote }}
             - name: REDPANDA_SCHEMA_REGISTRY_URL
-              value: "http://redpanda:8081"
+              value: {{ include "centrifuge-redpanda.schemaRegistryUrl" . | quote }}
             - name: REDPANDA_CLIENT_ID
               value: "cfg-cli"
+            - name: REDPANDA_READY_TIMEOUT_MS
+              value: {{ printf "%d000" (int (.Values.bootstrap.wait.timeoutSeconds | default 300)) | quote }}
           command:
-            - node
-            - packages/cfg-cli/dist/index.js
-            - events
-            - schemas
-            - update
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              SR="$REDPANDA_SCHEMA_REGISTRY_URL"
+              TIMEOUT={{ int (.Values.bootstrap.wait.timeoutSeconds | default 300) }}
+              INTERVAL={{ int (.Values.bootstrap.wait.intervalSeconds | default 5) }}
+              deadline=$(( $(date +%s) + TIMEOUT ))
+              echo "waiting for Schema Registry at ${SR}"
+              until node -e "fetch(process.env.REDPANDA_SCHEMA_REGISTRY_URL + '/subjects').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; do
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "Schema Registry did not become ready within ${TIMEOUT}s"
+                  exit 1
+                fi
+                sleep "$INTERVAL"
+              done
+              echo "registering protocol-event schemas"
+              node packages/cfg-cli/dist/index.js events schemas update
 {{- end }}

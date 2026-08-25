@@ -1,6 +1,7 @@
 name: Release Charts
 
-# Publishes all Helm charts under charts/ (api-v2, api-v3, erpc) when files under charts/** change.
+# Publishes all Helm charts under charts/ (api-v2, api-v3, erpc, redpanda,
+# api-v4-event-lake, api-v4-public-api) when files under charts/** change.
 # Chart-releaser packages each chart and uploads new versions to GitHub Pages.
 
 on:
@@ -26,6 +27,7 @@ jobs:
         run: |
           helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
           helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo add redpanda https://charts.redpanda.com
           helm repo update
 
       - name: Detect changed chart directories

@@ -5,36 +5,63 @@ metadata:
   name: {{ include "centrifuge-redpanda.fullname" . }}-bootstrap-topics
   labels:
     {{- include "centrifuge-redpanda.labels" . | nindent 4 }}
+    app.kubernetes.io/component: bootstrap-topics
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
     "helm.sh/hook-weight": "0"
 spec:
   backoffLimit: 3
+  activeDeadlineSeconds: {{ add (int (.Values.bootstrap.wait.timeoutSeconds | default 300)) 120 }}
   template:
     metadata:
       labels:
         {{- include "centrifuge-redpanda.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: bootstrap-topics
     spec:
       restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: rpk
-          # Default tag matches the pinned redpanda subchart appVersion (v26.1.14).
-          # Update this default when bumping the subchart dependency.
-          image: "{{ .Values.bootstrap.topics.image.repository }}:{{ .Values.bootstrap.topics.image.tag | default "v26.1.14" }}"
+          image: {{ include "centrifuge-redpanda.topicsImage" . | quote }}
+          imagePullPolicy: {{ .Values.bootstrap.topics.pullPolicy | default "IfNotPresent" }}
+          {{- with .Values.bootstrap.topics.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           command:
             - /bin/sh
             - -c
             - |
               set -eu
-              BROKERS="redpanda:9093"
+              BROKERS={{ include "centrifuge-redpanda.brokers" . | quote }}
+              TIMEOUT={{ int (.Values.bootstrap.wait.timeoutSeconds | default 300) }}
+              INTERVAL={{ int (.Values.bootstrap.wait.intervalSeconds | default 5) }}
+              deadline=$(( $(date +%s) + TIMEOUT ))
+              echo "waiting for Redpanda at ${BROKERS} (timeout ${TIMEOUT}s)"
+              until rpk cluster health --brokers "$BROKERS" >/dev/null 2>&1; do
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "Redpanda did not become healthy within ${TIMEOUT}s"
+                  rpk cluster health --brokers "$BROKERS" || true
+                  exit 1
+                fi
+                sleep "$INTERVAL"
+              done
+              echo "cluster healthy; reconciling topics"
               for NET in {{ range .Values.bootstrap.topics.networks }}{{ . }} {{ end }}; do
                 for T in "${NET}.protocol-events.speculative" "${NET}.protocol-events.confirmed" "${NET}.protocol-events-dlq"; do
-                  if ! rpk topic list --brokers "$BROKERS" | grep -qx "$T"; then
-                    EXTRA=""
-                    case "$T" in *speculative) EXTRA="-c cleanup.policy=compact";; esac
-                    rpk topic create "$T" --brokers "$BROKERS" -p {{ .Values.bootstrap.topics.partitions }} -r {{ .Values.bootstrap.topics.replicas }} $EXTRA
+                  if rpk topic describe "$T" --brokers "$BROKERS" >/dev/null 2>&1; then
+                    echo "exists ${T}"
+                    continue
                   fi
+                  EXTRA=""
+                  case "$T" in *speculative) EXTRA="-c cleanup.policy=compact";; esac
+                  # shellcheck disable=SC2086
+                  rpk topic create "$T" --brokers "$BROKERS" -p {{ .Values.bootstrap.topics.partitions }} -r {{ .Values.bootstrap.topics.replicas }} $EXTRA
+                  echo "created ${T}"
                 done
               done
 {{- end }}

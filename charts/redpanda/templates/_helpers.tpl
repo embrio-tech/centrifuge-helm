@@ -1,8 +1,13 @@
 {{/*
-Expand the name of the chart.
+Name for our own resources (the bootstrap Jobs).
+
+Deliberately NOT `.Chart.Name`: the upstream Redpanda Service selects on
+`app.kubernetes.io/name: redpanda` plus the release instance only, with no
+component label. Reusing `redpanda` here would put a running bootstrap Job pod
+behind the Kafka / Schema Registry / Admin Services, where it answers nothing.
 */}}
 {{- define "centrifuge-redpanda.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- default (printf "%s-bootstrap" .Chart.Name) .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
@@ -14,7 +19,7 @@ If release name contains chart name it will be used as a full name.
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- $name := .Chart.Name }}
 {{- if contains $name .Release.Name }}
 {{- .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -48,4 +53,27 @@ Selector labels
 {{- define "centrifuge-redpanda.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "centrifuge-redpanda.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+In-cluster Kafka brokers used by bootstrap Jobs.
+*/}}
+{{- define "centrifuge-redpanda.brokers" -}}
+{{- .Values.bootstrap.brokers | default "cfg-api-redpanda:9093" -}}
+{{- end }}
+
+{{/*
+In-cluster Schema Registry URL used by bootstrap Jobs.
+*/}}
+{{- define "centrifuge-redpanda.schemaRegistryUrl" -}}
+{{- .Values.bootstrap.schemaRegistryUrl | default "http://cfg-api-redpanda:8081" -}}
+{{- end }}
+
+{{/*
+rpk image for topic bootstrap. Tag defaults to this chart's appVersion, which
+tracks the vendored Redpanda subchart so the rpk client matches the brokers.
+*/}}
+{{- define "centrifuge-redpanda.topicsImage" -}}
+{{- $tag := .Values.bootstrap.topics.image.tag | default .Chart.AppVersion -}}
+{{- printf "%s:%s" .Values.bootstrap.topics.image.repository $tag -}}
 {{- end }}

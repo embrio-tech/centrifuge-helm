@@ -1,0 +1,17 @@
+{{- if .Values.query.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "centrifuge-api-v4-public.query.fullname" . }}
+  labels:
+    {{- include "centrifuge-api-v4-public.query.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.query.service.type }}
+  ports:
+    - port: {{ .Values.query.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "centrifuge-api-v4-public.query.selectorLabels" . | nindent 4 }}
+{{- end }}

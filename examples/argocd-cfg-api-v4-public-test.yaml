@@ -1,0 +1,28 @@
+# Argo CD Application: public-api (PostGraphile) + chain-event-handlers for testnet (eu main cluster).
+# Namespace: cfg-api. Sync wave 1 (after Redpanda).
+# Helm values live in centrifuge/backend environments/test.yaml.
+# query runs Drizzle migrations at boot; handlers wait for PUBLIC_API_HEALTH_URL then replay Kafka.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cfg-api-v4-public-test
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: cfg-api
+  sources:
+    - repoURL: https://embrio-tech.github.io/centrifuge-helm
+      targetRevision: "0.1.0"
+      chart: centrifuge-api-v4-public
+      helm:
+        releaseName: cfg-api-v4-public-test
+        valueFiles:
+          - $values/environments/test.yaml
+    - repoURL: https://github.com/centrifuge/backend.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cfg-api

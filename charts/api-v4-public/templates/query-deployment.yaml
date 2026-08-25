@@ -1,0 +1,101 @@
+{{- if .Values.query.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "centrifuge-api-v4-public.query.fullname" . }}
+  labels:
+    {{- include "centrifuge-api-v4-public.query.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.query.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "centrifuge-api-v4-public.query.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.query.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "centrifuge-api-v4-public.query.labels" . | nindent 8 }}
+        {{- with .Values.query.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with (.Values.query.imagePullSecrets | default .Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.query.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: query
+          {{- with .Values.query.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.query.image.repository }}:{{ .Values.query.image.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.query.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.query.service.port }}
+              protocol: TCP
+          {{- with .Values.query.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.query.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.query.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.query.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.query.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: POSTGRAPHILE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "centrifuge-api-v4-public.dbSecretName" . }}
+                  key: uri
+          {{- with .Values.query.env }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-config
+          {{- with .Values.query.envFrom }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.query.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.query.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.query.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.query.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

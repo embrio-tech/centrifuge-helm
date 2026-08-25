@@ -1,0 +1,104 @@
+nameOverride: ""
+fullnameOverride: ""
+imagePullSecrets: []
+
+global:
+  env:
+    CFG_NETWORK: "mainnet"
+    SELECTED_NETWORKS: "1,8453"
+    SELECTED_REGISTRY_VERSIONS: "3_1"
+    REDPANDA_BROKERS: "cfg-api-redpanda:9093"
+    REDPANDA_SCHEMA_REGISTRY_URL: "http://cfg-api-redpanda:8081"
+    LOG_LEVEL: "info"
+    ENVIO_HASURA: "false"
+    ENVIO_TUI: "false"
+    ENVIO_HEALTH_PORT: "8080"
+    IPFS_GATEWAY: "https://ipfs.centrifuge.io/ipfs"
+  # -- CNPG app Secret sourcing DB credentials (host/port/username/password/dbname).
+  # Default name: <release>-postgres-app (created by the cluster subchart).
+  # dbSecretName: ""
+  # -- Optional RPC Secret (ENVIO_RPC_URL_* and/or ENVIO_API_TOKEN). Empty: no
+  # secretRef; per-chain URLs come from erpc.urlTemplate. Secret keys override
+  # the ConfigMap when both are set.
+  apiSecretName: ""
+
+# -- In-cluster eRPC in the same cluster and namespace (cfg-api). `%s` is replaced with
+# the chain id.
+#
+# The host differs per region: api-v3 in production uses cfg-api-erpc on eu and
+# cfg-api-erpc-us on us (see cfg-api-v3 environments/main.yaml vs main-us.yaml), so the
+# default below only fits eu and every us release must override it.
+#
+# The host is the eRPC Service, which follows the eRPC Helm release name, since the erpc
+# chart's fullname helper returns the release name unchanged when it already contains
+# "erpc". Confirm with `kubectl -n cfg-api get svc` before a first sync.
+erpc:
+  urlTemplate: "http://cfg-api-erpc:4000/main/evm/%s"
+
+indexer:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: ghcr.io/centrifuge/event-lake
+    pullPolicy: IfNotPresent
+    tag: "latest"
+  imagePullSecrets: []
+  nameOverride: ""
+  fullnameOverride: ""
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext: {}
+  securityContext: {}
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      cpu: 500m
+      memory: 4Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+  # /health returns 200 as soon as the entrypoint runs (before indexing catches up).
+  startupProbe:
+    httpGet: { path: /health, port: 8080 }
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 60
+  readinessProbe:
+    httpGet: { path: /health, port: 8080 }
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  livenessProbe:
+    httpGet: { path: /health, port: 8080 }
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  volumes: []
+  volumeMounts: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  env: []
+  envFrom: []
+
+postgres:
+  enabled: false
+  cluster:
+    instances: 1
+    initdb:
+      database: envio
+    storage:
+      size: 64Gi
+      storageClass: "ceph-perf3"
+    # Separate WAL PVC. Once enabled on a live Cluster, CNPG rejects disabling it.
+    walStorage:
+      enabled: true
+      size: 32Gi
+      storageClass: "ceph-perf3"
+    resources:
+      requests: { cpu: 500m, memory: 4Gi }
+      limits: { cpu: "2", memory: 4Gi }
+    affinity:
+      topologyKey: topology.cinder.csi.openstack.org/zone

@@ -1,0 +1,130 @@
+nameOverride: ""
+fullnameOverride: ""
+imagePullSecrets: []
+
+global:
+  env:
+    CFG_NETWORK: "mainnet"
+    NODE_ENV: "production"
+    PUBLIC_API_PORT: "5000"
+    PUBLIC_DB_BASELINE_SCHEMA: "chain_v1"
+    HANDLERS_HEALTH_PORT: "3001"
+    PUBLIC_API_HEALTH_TIMEOUT_MS: "300000"   # migrations can take a while on first boot
+    PUBLIC_API_HEALTH_RETRY_MS: "2000"
+    REDPANDA_BROKERS: "cfg-api-redpanda:9093"
+  # dbSecretName: ""               # optional override; default <release>-postgres-app
+
+query:
+  enabled: true
+  replicaCount: 1                  # runs DB migrations at boot; keep 1
+  image:
+    repository: ghcr.io/centrifuge/public-api
+    pullPolicy: IfNotPresent
+    tag: "latest"
+  imagePullSecrets: []
+  nameOverride: ""
+  fullnameOverride: ""
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext: {}
+  securityContext: {}
+  service:
+    type: ClusterIP
+    port: 5000
+  ingress:
+    enabled: false
+    className: "traefik"
+    annotations:
+      kubernetes.io/tls-acme: "true"
+      traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    hosts: []
+    tls: []
+  resources:
+    requests: { cpu: 100m, memory: 512Mi }
+    limits: { cpu: "1", memory: 512Mi }
+  startupProbe:
+    httpGet: { path: /health, port: 5000 }
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 60           # covers migration time
+  readinessProbe:
+    httpGet: { path: /health, port: 5000 }
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  livenessProbe:
+    httpGet: { path: /health, port: 5000 }
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  env: []
+  envFrom: []
+  volumes: []
+  volumeMounts: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+handlers:
+  enabled: true
+  replicaCount: 1                  # consumer group = REDPANDA_CLIENT_ID; never scale up
+  image:
+    repository: ghcr.io/centrifuge/chain-event-handlers
+    pullPolicy: IfNotPresent
+    tag: "latest"
+  imagePullSecrets: []
+  nameOverride: ""
+  fullnameOverride: ""
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext: {}
+  securityContext: {}
+  service:
+    type: ClusterIP
+    port: 3001
+  resources:
+    requests: { cpu: 250m, memory: 1Gi }
+    limits: { cpu: "1", memory: 2Gi }
+  # /health only starts after public-api is reachable and the DB pool is open.
+  # The full Kafka replay happens afterwards and can take minutes; /health stays up.
+  startupProbe:
+    httpGet: { path: /health, port: 3001 }
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 90
+  readinessProbe:
+    httpGet: { path: /health, port: 3001 }
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  livenessProbe:
+    httpGet: { path: /health, port: 3001 }
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+  env: []
+  envFrom: []
+  volumes: []
+  volumeMounts: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+postgres:
+  enabled: false
+  cluster:
+    instances: 1
+    storage:
+      size: 64Gi
+      storageClass: "ceph-perf3"
+    # Separate WAL PVC. Once enabled on a live Cluster, CNPG rejects disabling it.
+    walStorage:
+      enabled: true
+      size: 32Gi
+      storageClass: "ceph-perf3"
+    resources:
+      requests: { cpu: 250m, memory: 2Gi }
+      limits: { cpu: "2", memory: 2Gi }
+    affinity:
+      topologyKey: topology.cinder.csi.openstack.org/zone

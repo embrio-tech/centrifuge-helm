@@ -1,0 +1,102 @@
+{{- if .Values.handlers.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "centrifuge-api-v4-public.handlers.fullname" . }}
+  labels:
+    {{- include "centrifuge-api-v4-public.handlers.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.handlers.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "centrifuge-api-v4-public.handlers.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.handlers.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "centrifuge-api-v4-public.handlers.labels" . | nindent 8 }}
+        {{- with .Values.handlers.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with (.Values.handlers.imagePullSecrets | default .Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.handlers.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: handlers
+          {{- with .Values.handlers.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.handlers.image.repository }}:{{ .Values.handlers.image.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.handlers.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.handlers.service.port }}
+              protocol: TCP
+          {{- with .Values.handlers.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.handlers.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.handlers.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.handlers.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.handlers.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: POSTGRAPHILE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "centrifuge-api-v4-public.dbSecretName" . }}
+                  key: uri
+            - name: REDPANDA_CLIENT_ID
+              value: {{ printf "cfg-handlers-%s" .Release.Name | quote }}
+            - name: PUBLIC_API_HEALTH_URL
+              value: {{ printf "http://%s:%v/health" (include "centrifuge-api-v4-public.query.fullname" .) .Values.query.service.port | quote }}
+          {{- with .Values.handlers.env }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-config
+          {{- with .Values.handlers.envFrom }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.handlers.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.handlers.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.handlers.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.handlers.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

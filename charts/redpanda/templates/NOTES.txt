@@ -1,0 +1,21 @@
+redpanda {{ .Chart.Version }} (upstream Redpanda {{ .Chart.AppVersion }})
+
+In-cluster endpoints (Helm release `cfg-api-redpanda`):
+  Kafka:            {{ include "centrifuge-redpanda.brokers" . }}
+  Schema Registry:  {{ include "centrifuge-redpanda.schemaRegistryUrl" . }}
+  Admin API:        cfg-api-redpanda:9644
+  Console:          http://cfg-api-redpanda-console:8080  (if redpanda.console.enabled)
+
+External Kafka / Schema Registry / Admin are disabled. Do not re-enable
+`redpanda.external` while handlers still speak plaintext with no SASL.
+
+Bootstrap:
+  topics  {{ if .Values.bootstrap.topics.enabled }}enabled (1 partition, RF {{ .Values.bootstrap.topics.replicas }}){{ else }}disabled{{ end }}
+  schemas {{ if .Values.bootstrap.schemas.enabled }}enabled (image {{ .Values.bootstrap.schemas.image.repository }}:{{ .Values.bootstrap.schemas.image.tag }}){{ else }}disabled — needs cfg-cli in the event-lake image{{ end }}
+
+Protocol-event topics (do not raise partitions; handlers require ordering):
+{{- range .Values.bootstrap.topics.networks }}
+  {{ . }}.protocol-events.speculative   (compacted)
+  {{ . }}.protocol-events.confirmed
+  {{ . }}.protocol-events-dlq
+{{- end }}

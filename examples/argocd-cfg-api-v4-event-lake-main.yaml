@@ -1,0 +1,30 @@
+# Argo CD Application: event-lake indexer for mainnet (eu main cluster).
+# Namespace: cfg-api. Sync wave 1 (after Redpanda topics/schemas).
+#
+# Helm values live in centrifuge/event-lake environments/main.yaml (chain list and
+# registry pin follow api-v3 environments/main.yaml). RPC is in-cluster eRPC.
+# Optional override: set global.apiSecretName (see examples/secrets/cfg-api-v4-event-lake-rpc.yaml).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cfg-api-v4-event-lake-main
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: cfg-api
+  sources:
+    - repoURL: https://embrio-tech.github.io/centrifuge-helm
+      targetRevision: "0.1.0"
+      chart: centrifuge-api-v4-event-lake
+      helm:
+        releaseName: cfg-api-v4-event-lake-main
+        valueFiles:
+          - $values/environments/main.yaml
+    - repoURL: https://github.com/centrifuge/event-lake.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cfg-api

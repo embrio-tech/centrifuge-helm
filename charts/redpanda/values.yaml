@@ -1,12 +1,19 @@
 nameOverride: ""
+# Empty so Helm release `cfg-api-redpanda` is the k8s name (same pattern as erpc).
+# Helper templates use prefix centrifuge-redpanda to avoid colliding with the
+# upstream Redpanda subchart's `redpanda.*` defines.
 fullnameOverride: ""
+imagePullSecrets: []
 
-# -- Redpanda subchart overrides. Service names collapse to `redpanda` because the
-# subchart fullname equals the release name when `fullnameOverride: redpanda`.
-# Bootstrap Jobs and downstream apps reference `redpanda:9093` (Kafka) and
-# `http://redpanda:8081` (Schema Registry).
+# -- Redpanda subchart. Release name `cfg-api-redpanda` contains chart name
+# `redpanda`, so the Kafka Service is `cfg-api-redpanda:9093` and Schema
+# Registry is `http://cfg-api-redpanda:8081`.
+#
+# Upstream defaults expose Kafka/Admin/Schema Registry as NodePort. That is not
+# acceptable here: handlers have no SASL/TLS, so the Kafka API must stay
+# in-cluster only. Console is the only component that may get an Ingress.
 redpanda:
-  fullnameOverride: redpanda
+  fullnameOverride: ""
   statefulset:
     replicas: 3
   auth:
@@ -14,14 +21,34 @@ redpanda:
       enabled: false           # handlers have no SASL support; plaintext in-cluster only
   tls:
     enabled: false             # handlers have no TLS support
+  # -- Do not advertise or Service-expose Kafka / Schema Registry / Admin outside
+  # the cluster. Override only for a break-glass debug session.
+  external:
+    enabled: false
+    service:
+      enabled: false
   listeners:
     kafka:
       port: 9093
+      external:
+        default:
+          enabled: false
     schemaRegistry:
       enabled: true
       port: 8081
+      external:
+        default:
+          enabled: false
     admin:
       port: 9644
+      external:
+        default:
+          enabled: false
+    http:
+      enabled: true
+      external:
+        default:
+          enabled: false
   storage:
     persistentVolume:
       enabled: true
@@ -36,13 +63,37 @@ redpanda:
       redpanda:
         memory: 2Gi
         reserveMemory: 1Gi
+  # -- Privileged aio tuner. Off by default (OpenStack worker nodes often reject
+  # privileged init containers). Enable per cluster if the node image allows it.
+  tuning:
+    tune_aio_events: false
+  logging:
+    usageStats:
+      enabled: false
+  # -- Prometheus Operator is already in the cluster (erpc ServiceMonitor).
+  monitoring:
+    enabled: true
+    scrapeInterval: 30s
+  # -- Topics are created by the bootstrap Job. Producers have auto-create off.
+  config:
+    cluster:
+      auto_create_topics_enabled: false
   console:
     enabled: true
     ingress:
       enabled: false             # enable per environment; traefik + tls-acme annotations
+    monitoring:
+      enabled: true
 
-# -- Bootstrap Jobs run as Helm post-install/post-upgrade hooks.
+# -- Bootstrap Jobs run as Helm post-install/post-upgrade hooks. They wait for
+# the cluster to be healthy before mutating topics/schemas (StatefulSet Ready
+# lags Helm apply).
 bootstrap:
+  brokers: "cfg-api-redpanda:9093"
+  schemaRegistryUrl: "http://cfg-api-redpanda:8081"
+  wait:
+    timeoutSeconds: 300
+    intervalSeconds: 5
   # -- Topic bootstrap. Creates the protocol-events topics for each network with
   # 1 partition and RF 3 (handlers assume single-partition topics; do not raise).
   # `cfg-cli reconcile-topics` hardcodes RF 1, so topics are created with rpk here.
@@ -50,18 +101,33 @@ bootstrap:
     enabled: true
     image:
       repository: docker.redpanda.com/redpandadata/redpanda
-      tag: ""                    # default: same redpanda version as the subchart appVersion
+      tag: ""                    # default: this chart's appVersion (matches the subchart)
+    pullPolicy: IfNotPresent
     partitions: 1
     replicas: 3
     networks:
       - mainnet
       - testnet
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
   # -- Schema bootstrap. Registers protobuf subjects `<topic>-value` for both
-  # networks via `cfg-cli events schemas update`. Requires the cfg-cli image
-  # prerequisite (see PLAN section 2); disable with `bootstrap.schemas.enabled=false`
-  # until that lands.
+  # networks via `cfg-cli events schemas update`. Requires cfg-cli in the
+  # event-lake image. Leave false until that image is published, then pin a tag.
   schemas:
-    enabled: true
+    enabled: false
     image:
       repository: ghcr.io/centrifuge/event-lake
       tag: "latest"
+    pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
