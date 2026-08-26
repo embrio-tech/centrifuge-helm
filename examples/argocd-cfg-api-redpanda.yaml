@@ -3,7 +3,7 @@
 # Sync wave 0: must finish before event-lake and public-api (wave 1) so topics exist.
 # Kafka/Schema Registry stay in-cluster (external NodePort is off in chart defaults).
 # Console ingress has no auth; treat the host as operator-only.
-# bootstrap.schemas.enabled stays false until the event-lake image contains cfg-cli.
+# Schema bootstrap registers protobuf subjects via cfg-cli in the event-lake image.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -21,6 +21,12 @@ spec:
     helm:
       releaseName: cfg-api-redpanda
       values: |
+        bootstrap:
+          schemas:
+            enabled: true
+            image:
+              repository: ghcr.io/centrifuge/event-lake
+              tag: latest
         redpanda:
           storage:
             persistentVolume:

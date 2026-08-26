@@ -59,5 +59,8 @@ spec:
                 sleep "$INTERVAL"
               done
               echo "registering protocol-event schemas"
-              node packages/cfg-cli/dist/index.js events schemas update
+              for NET in {{ range .Values.bootstrap.topics.networks }}{{ . }} {{ end }}; do
+                echo "registering ${NET} protocol-event schemas"
+                node packages/cfg-cli/dist/index.js events schemas update -n "$NET"
+              done
 {{- end }}

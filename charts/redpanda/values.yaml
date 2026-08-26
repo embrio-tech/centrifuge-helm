@@ -192,9 +192,10 @@ bootstrap:
       limits:
         cpu: 200m
         memory: 256Mi
-  # -- Schema bootstrap. Registers protobuf subjects `<topic>-value` for both
-  # networks via `cfg-cli events schemas update`. Requires cfg-cli in the
-  # event-lake image. Leave false until that image is published, then pin a tag.
+  # -- Schema bootstrap. Registers protobuf subjects `<topic>-value` for every
+  # name in bootstrap.topics.networks via `cfg-cli events schemas update -n`.
+  # Requires cfg-cli in the event-lake image. The Job loops networks because
+  # cfg-cli defaults to mainnet when CFG_NETWORK / --network is unset.
   schemas:
     enabled: false
     image:

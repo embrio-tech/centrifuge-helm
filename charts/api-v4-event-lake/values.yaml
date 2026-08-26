@@ -6,14 +6,17 @@ global:
   env:
     CFG_NETWORK: "mainnet"
     SELECTED_NETWORKS: "1,8453"
-    SELECTED_REGISTRY_VERSIONS: "3_1"
+    # Folds the published registry layers into handler versions. Required: repeated version
+    # slugs in the registry chain otherwise collide on one generated file and the surviving
+    # blob can hold null addresses, which makes the indexer publish nothing. Same value as api-v3.
+    REGISTRY_VERSION_MAP: '{"v3":"v3","v3_1":["v3_1","v3_2"]}'
     REDPANDA_BROKERS: "cfg-api-redpanda:9093"
     REDPANDA_SCHEMA_REGISTRY_URL: "http://cfg-api-redpanda:8081"
     LOG_LEVEL: "info"
     ENVIO_HASURA: "false"
     ENVIO_TUI: "false"
     ENVIO_HEALTH_PORT: "8080"
-    IPFS_GATEWAY: "https://ipfs.centrifuge.io/ipfs"
+    IPFS_GATEWAY: "https://centrifuge-files.mypinata.cloud/ipfs"
   # -- CNPG app Secret sourcing DB credentials (host/port/username/password/dbname).
   # Default name: <release>-postgres-app (created by the cluster subchart).
   # dbSecretName: ""

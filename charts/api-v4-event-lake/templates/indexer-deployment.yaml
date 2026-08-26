@@ -96,6 +96,8 @@ spec:
                 secretKeyRef:
                   name: {{ include "centrifuge-api-v4-event-lake.dbSecretName" . }}
                   key: password
+            - name: ENVIO_PG_SCHEMA
+              value: {{ .Values.indexer.image.tag | default "latest" | quote }}
             - name: REDPANDA_CLIENT_ID
               value: {{ printf "envio-origination-%s" .Release.Name | quote }}
           {{- with .Values.indexer.env }}
