@@ -17,10 +17,11 @@ global:
   # -- CNPG app Secret sourcing DB credentials (host/port/username/password/dbname).
   # Default name: <release>-postgres-app (created by the cluster subchart).
   # dbSecretName: ""
-  # -- Optional RPC Secret (ENVIO_RPC_URL_* and/or ENVIO_API_TOKEN). Empty: no
-  # secretRef; per-chain URLs come from erpc.urlTemplate. Secret keys override
-  # the ConfigMap when both are set.
-  apiSecretName: ""
+  # -- Pre-deployed Secret (ENVIO_API_TOKEN + optional ENVIO_RPC_URL_* overrides).
+  # The indexer always mounts this name (optional: true). Empty here still
+  # resolves to cfg-api-v4-event-lake-rpc-overrides so a live Secret reaches
+  # the process. Secret keys override ConfigMap ENVIO_RPC_URL_* values.
+  apiSecretName: cfg-api-v4-event-lake-rpc-overrides
 
 # -- In-cluster eRPC in the same cluster and namespace (cfg-api). `%s` is replaced with
 # the chain id.

@@ -3,7 +3,8 @@
 #
 # Helm values live in centrifuge/event-lake environments/test.yaml (chain list
 # and registry URL follow api-v3 environments/test.yaml). RPC is in-cluster eRPC.
-# Optional override: set global.apiSecretName (see examples/secrets/cfg-api-v4-event-lake-rpc.yaml).
+# ENVIO_API_TOKEN comes from Secret cfg-api-v4-event-lake-rpc-overrides
+# (global.apiSecretName in the env file).
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -22,7 +23,7 @@ spec:
         releaseName: cfg-api-v4-event-lake-test
         valueFiles:
           - $values/environments/test.yaml
-    - repoURL: https://github.com/centrifuge/event-lake.git
+    - repoURL: git@github.com:centrifuge/event-lake.git
       targetRevision: main
       ref: values
   destination:

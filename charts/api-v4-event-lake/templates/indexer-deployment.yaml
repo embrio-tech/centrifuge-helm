@@ -65,6 +65,12 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           env:
+            - name: ENVIO_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "centrifuge-api-v4-event-lake.apiSecretName" . | quote }}
+                  key: ENVIO_API_TOKEN
+                  optional: true
             - name: ENVIO_PG_HOST
               valueFrom:
                 secretKeyRef:
@@ -98,10 +104,9 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ .Release.Name }}-config
-            {{- if .Values.global.apiSecretName }}
             - secretRef:
-                name: {{ .Values.global.apiSecretName | quote }}
-            {{- end }}
+                name: {{ include "centrifuge-api-v4-event-lake.apiSecretName" . | quote }}
+                optional: true
           {{- with .Values.indexer.envFrom }}
             {{- toYaml . | nindent 12 }}
           {{- end }}

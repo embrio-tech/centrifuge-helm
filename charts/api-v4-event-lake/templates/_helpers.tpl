@@ -74,6 +74,16 @@ Application credentials secret: <this>-app (keys uri, host, port, username, pass
 {{- end }}
 
 {{/*
+Pre-deployed RPC/HyperSync Secret. Empty values.yaml used to skip the mount
+entirely, so a Secret in the namespace never reached the process. Always
+resolve a name; the Deployment marks the ref optional so a missing Secret
+does not block the pod.
+*/}}
+{{- define "centrifuge-api-v4-event-lake.apiSecretName" -}}
+{{- .Values.global.apiSecretName | default "cfg-api-v4-event-lake-rpc-overrides" -}}
+{{- end }}
+
+{{/*
 ENVIO_RPC_URL_<chainId> for every id in SELECTED_NETWORKS, pointing at in-cluster
 eRPC. Skips keys already set in global.env. No-op when erpc.urlTemplate is empty.
 */}}
