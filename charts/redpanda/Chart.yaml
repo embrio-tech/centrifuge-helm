@@ -2,7 +2,7 @@ apiVersion: v2
 name: redpanda
 description: Redpanda cluster (Kafka API + Schema Registry + Console) for Centrifuge protocol events, with topic and schema bootstrap
 type: application
-version: 0.1.6
+version: 0.1.7
 appVersion: "v26.1.14"
 dependencies:
   - name: redpanda
