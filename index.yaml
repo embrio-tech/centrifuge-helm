@@ -1982,6 +1982,23 @@ entries:
   centrifuge-api-v4-event-lake:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2026-08-26T11:58:10.743884342Z"
+    dependencies:
+    - alias: postgres
+      condition: postgres.enabled
+      name: cluster
+      repository: https://cloudnative-pg.github.io/charts
+      version: 0.3.1
+    description: Centrifuge event-lake ingestion (Envio indexer -> Redpanda protocol
+      events)
+    digest: 87266625b62bc9a2b92b7a74343c1c13fe93a2837aadf5a4ef5aaa244eb9eb1f
+    name: centrifuge-api-v4-event-lake
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-event-lake-0.1.3/centrifuge-api-v4-event-lake-0.1.3.tgz
+    version: 0.1.3
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2026-08-25T09:11:03.241406372Z"
     dependencies:
     - alias: postgres
@@ -3116,4 +3133,4 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/redpanda-0.1.2/redpanda-0.1.2.tgz
     version: 0.1.2
-generated: "2026-08-25T18:03:52.680252495Z"
+generated: "2026-08-26T11:58:10.744111527Z"
