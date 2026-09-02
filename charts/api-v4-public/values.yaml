@@ -139,7 +139,9 @@ postgres:
         comment: Internet SQL reader. SELECT + LISTEN only.
 
 # Internet SQL reader (SELECT + LISTEN). Off by default.
-# Set global.sqlRoHostname in env values to enable pooler, LB, and TLS SAN.
+# Set global.sqlRoHostname in env to enable pooler and LB.
+# TLS: upstream CNPG subchart needs postgres.cluster.certificates.serverAltDNSNames;
+# use a YAML anchor in env so the hostname is defined once (see environments/main.yaml).
 sqlRo:
   annotations: {}
   service:
