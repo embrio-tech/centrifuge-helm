@@ -9,4 +9,4 @@ dependencies:
     name: cluster
     condition: postgres.enabled
     version: 0.3.1
-    repository: https://cloudnative-pg.github.io/charts
+    repository: file://charts/cluster

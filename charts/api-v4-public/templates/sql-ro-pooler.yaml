@@ -1,0 +1,21 @@
+{{- $hostname := .Values.global.sqlRoHostname | default "" }}
+{{- if $hostname }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: {{ include "centrifuge-api-v4-public.sqlRo.poolerName" . }}
+  labels:
+    {{- include "centrifuge-api-v4-public.sqlRo.labels" . | nindent 4 }}
+spec:
+  cluster:
+    name: {{ include "centrifuge-api-v4-public.cnpgClusterFullname" . }}
+  instances: {{ .Values.sqlRo.pooler.instances }}
+  type: {{ .Values.sqlRo.pooler.type }}
+  pgbouncer:
+    poolMode: {{ .Values.sqlRo.pooler.poolMode }}
+    authQuery: {{ .Values.sqlRo.pooler.authQuery | quote }}
+    parameters:
+      {{- toYaml .Values.sqlRo.pooler.parameters | nindent 6 }}
+    pg_hba:
+      {{- toYaml .Values.sqlRo.pooler.pg_hba | nindent 6 }}
+{{- end }}

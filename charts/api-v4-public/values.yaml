@@ -12,6 +12,7 @@ global:
     PUBLIC_API_HEALTH_TIMEOUT_MS: "300000"   # migrations can take a while on first boot
     PUBLIC_API_HEALTH_RETRY_MS: "2000"
     REDPANDA_BROKERS: "cfg-api-redpanda:9093"
+  sqlRoHostname: ""
   # dbSecretName: ""               # optional override; default <release>-postgres-app
 
 query:
@@ -128,3 +129,35 @@ postgres:
       limits: { cpu: "2", memory: 2Gi }
     affinity:
       topologyKey: topology.cinder.csi.openstack.org/zone
+    roles:
+      - name: public_ro
+        ensure: present
+        login: true
+        superuser: false
+        inherit: true
+        connectionLimit: 8
+        comment: Internet SQL reader. SELECT + LISTEN only.
+
+# Internet SQL reader (SELECT + LISTEN). Off by default.
+# Set global.sqlRoHostname in env values to enable pooler, LB, and TLS SAN.
+sqlRo:
+  annotations: {}
+  service:
+    type: LoadBalancer
+    port: 5432
+  pooler:
+    name: sql-ro
+    type: rw
+    poolMode: session
+    instances: 1
+    authQuery: SELECT usename, passwd FROM public.user_search($1) WHERE usename = 'public_ro'
+    parameters:
+      max_client_conn: "16"
+      default_pool_size: "8"
+      ignore_startup_parameters: extra_float_digits
+      server_idle_timeout: "0"
+      client_idle_timeout: "0"
+      server_lifetime: "0"
+    pg_hba:
+      - hostssl app public_ro 0.0.0.0/0 scram-sha-256
+      - host all all 0.0.0.0/0 reject

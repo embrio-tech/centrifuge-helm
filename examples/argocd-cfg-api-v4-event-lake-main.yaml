@@ -23,7 +23,7 @@ spec:
         releaseName: cfg-api-v4-event-lake-main
         valueFiles:
           - $values/environments/main.yaml
-    - repoURL: https://github.com/centrifuge/event-lake.git
+    - repoURL: git@github.com:centrifuge/event-lake.git
       targetRevision: main
       ref: values
   destination:

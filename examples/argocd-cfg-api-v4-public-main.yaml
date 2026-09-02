@@ -20,7 +20,7 @@ spec:
         releaseName: cfg-api-v4-public-main
         valueFiles:
           - $values/environments/main.yaml
-    - repoURL: https://github.com/centrifuge/backend.git
+    - repoURL: git@github.com:centrifuge/backend.git
       targetRevision: main
       ref: values
   destination:

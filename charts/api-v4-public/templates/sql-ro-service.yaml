@@ -1,0 +1,26 @@
+{{- $hostname := .Values.global.sqlRoHostname | default "" }}
+{{- if $hostname }}
+{{- if not .Values.postgres.enabled }}
+{{- fail "sqlRo requires postgres.enabled" }}
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "centrifuge-api-v4-public.sqlRo.fullname" . }}
+  labels:
+    {{- include "centrifuge-api-v4-public.sqlRo.labels" . | nindent 4 }}
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: {{ required "global.sqlRoHostname is required when sql-ro is enabled" $hostname | quote }}
+    {{- with .Values.sqlRo.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  type: {{ .Values.sqlRo.service.type }}
+  ports:
+    - port: {{ .Values.sqlRo.service.port }}
+      targetPort: postgres
+      protocol: TCP
+      name: postgres
+  selector:
+    cnpg.io/poolerName: {{ include "centrifuge-api-v4-public.sqlRo.poolerName" . | quote }}
+{{- end }}
