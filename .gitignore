@@ -3,3 +3,4 @@ compose.yml
 # Helm subchart archives. Fetched in CI / locally; never committed.
 charts/*/charts/*.tgz
 .cr-release-packages/
+.cr-index/

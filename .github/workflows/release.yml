@@ -141,6 +141,8 @@ jobs:
           tar -xzf cr.tar.gz cr
           owner="${GITHUB_REPOSITORY%/*}"
           repo="${GITHUB_REPOSITORY#*/}"
+          rm -rf .cr-index
+          mkdir -p .cr-index
           ./cr upload -o "$owner" -r "$repo" -c "$(git rev-parse HEAD)" --skip-existing
           ./cr index -o "$owner" -r "$repo" --push
         env:
