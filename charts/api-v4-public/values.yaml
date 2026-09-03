@@ -133,7 +133,6 @@ postgres:
       - name: public_ro
         ensure: present
         login: true
-        superuser: false
         inherit: true
         connectionLimit: 8
         comment: Internet SQL reader. SELECT + LISTEN only.
