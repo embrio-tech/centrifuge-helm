@@ -20,7 +20,7 @@ query:
   replicaCount: 1                  # runs DB migrations at boot; keep 1
   image:
     repository: ghcr.io/centrifuge/public-api
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
     tag: "latest"
   imagePullSecrets: []
   nameOverride: ""
@@ -72,7 +72,7 @@ handlers:
   replicaCount: 1                  # consumer group = REDPANDA_CLIENT_ID; never scale up
   image:
     repository: ghcr.io/centrifuge/chain-event-handlers
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
     tag: "latest"
   imagePullSecrets: []
   nameOverride: ""

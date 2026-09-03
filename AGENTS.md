@@ -60,7 +60,7 @@ Topics: `<network>.protocol-events.speculative` (compacted), `<network>.protocol
 6. `walStorage.enabled: true` on every database. CNPG rejects disabling it on a live Cluster, so never ship it off.
 7. Storage class: `ceph-perf3` on the eu cluster, `perf3` on us. Parameterize, set per environment in `examples/`.
 8. Deployments: `RollingUpdate` (`maxSurge: 1`, `maxUnavailable: 0`) for stateless components, `strategy: Recreate` for stateful singletons (`indexer`, `handlers`). `resources`, probes, `env`, `envFrom`, `volumes`, `nodeSelector`, `tolerations`, `affinity` are `{{- with }}` passthroughs from values.
-9. Images: `image.repository` + `image.tag` (chart default `"latest"`) + `pullPolicy: IfNotPresent`. Production tags are pinned in Argo CD values, never in the chart.
+9. Images: `image.repository` + `image.tag` (chart default `"latest"`) + `pullPolicy: Always` for api-v4-public. Other charts stay `IfNotPresent`. Production tags are pinned in Argo CD values, never in the chart.
 10. Ingress: Traefik, disabled by default, annotations `kubernetes.io/tls-acme: "true"`, `traefik.ingress.kubernetes.io/router.entrypoints: "websecure"`, `nginx.ingress.kubernetes.io/ssl-redirect: "true"`.
 11. Always set both `requests` and `limits` in default values.
 
