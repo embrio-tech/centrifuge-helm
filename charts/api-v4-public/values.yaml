@@ -152,7 +152,6 @@ sqlRo:
     type: rw
     poolMode: session
     instances: 1
-    authQuery: SELECT usename, passwd FROM public.user_search($1) WHERE usename = 'public_ro'
     parameters:
       max_client_conn: "16"
       default_pool_size: "8"

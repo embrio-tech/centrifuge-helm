@@ -13,7 +13,6 @@ spec:
   type: {{ .Values.sqlRo.pooler.type }}
   pgbouncer:
     poolMode: {{ .Values.sqlRo.pooler.poolMode }}
-    authQuery: {{ .Values.sqlRo.pooler.authQuery | quote }}
     parameters:
       {{- toYaml .Values.sqlRo.pooler.parameters | nindent 6 }}
     pg_hba:
