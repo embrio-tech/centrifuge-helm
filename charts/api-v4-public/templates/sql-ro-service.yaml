@@ -18,9 +18,9 @@ spec:
   type: {{ .Values.sqlRo.service.type }}
   ports:
     - port: {{ .Values.sqlRo.service.port }}
-      targetPort: postgres
+      targetPort: pgbouncer
       protocol: TCP
-      name: postgres
+      name: pgbouncer
   selector:
     cnpg.io/poolerName: {{ include "centrifuge-api-v4-public.sqlRo.poolerName" . | quote }}
 {{- end }}
