@@ -12,6 +12,7 @@ spec:
   instances: {{ .Values.sqlRo.pooler.instances }}
   type: {{ .Values.sqlRo.pooler.type }}
   pgbouncer:
+    # Leave authQuery unset so CNPG wires cnpg_pooler_pgbouncer automatically.
     poolMode: {{ .Values.sqlRo.pooler.poolMode }}
     parameters:
       {{- toYaml .Values.sqlRo.pooler.parameters | nindent 6 }}

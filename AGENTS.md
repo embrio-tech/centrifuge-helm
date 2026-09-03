@@ -83,7 +83,7 @@ Runs Drizzle migrations at boot, so keep `replicaCount: 1` and a generous `start
 
 - Do not bump `version` in a PR, the workflow does it.
 - Do not put `[skip release]` in a normal commit, that skips the whole job.
-- A published version is immutable. Fix forward with a new patch.
+- A published version is immutable. Fix forward with a new patch. CI skips GitHub release tags that already exist, so a failed index after upload cannot reuse that version.
 
 ## Local checks (run before proposing a change)
 

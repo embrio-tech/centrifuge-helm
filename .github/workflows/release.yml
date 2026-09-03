@@ -99,13 +99,22 @@ jobs:
 
       - name: Bump chart versions
         if: steps.changed.outputs.changed == 'true' && steps.changed.outputs.bump == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           for chart in ${{ steps.changed.outputs.charts }}; do
             CHART_FILE="charts/$chart/Chart.yaml"
+            name="$(yq e '.name' "$CHART_FILE")"
             version="$(yq e '.version' "$CHART_FILE")"
             IFS='.' read -r major minor patch <<<"$version"
-            new_version="${major}.${minor}.$((patch + 1))"
+            patch=$((patch + 1))
+            new_version="${major}.${minor}.${patch}"
+            while gh release view "${name}-${new_version}" >/dev/null 2>&1; do
+              echo "skip ${name}-${new_version}: GitHub release already exists"
+              patch=$((patch + 1))
+              new_version="${major}.${minor}.${patch}"
+            done
             yq e -i ".version = \"${new_version}\"" "$CHART_FILE"
             echo "$CHART_FILE: version: $version -> version: $new_version"
           done
