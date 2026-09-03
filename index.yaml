@@ -1481,6 +1481,22 @@ entries:
     version: 0.1.21
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2026-09-03T08:01:55.08660532Z"
+    dependencies:
+    - alias: postgres
+      condition: postgres.enabled
+      name: cluster
+      repository: https://cloudnative-pg.github.io/charts
+      version: 0.3.1
+    description: Helm chart for Centrifuge API v3 ponder based indexer
+    digest: b68a2ddd982ba790786ca58fffc3b38b82c27d9fd250e4133d37c8e0aeebdd47
+    name: centrifuge-api-v3
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v3-0.1.20/centrifuge-api-v3-0.1.20.tgz
+    version: 0.1.20
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2026-01-30T10:10:06.969997298Z"
     dependencies:
     - alias: indexer
@@ -2032,6 +2048,23 @@ entries:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-event-lake-0.1.2/centrifuge-api-v4-event-lake-0.1.2.tgz
     version: 0.1.2
   centrifuge-api-v4-public:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-09-03T08:02:01.51463802Z"
+    dependencies:
+    - alias: postgres
+      condition: postgres.enabled
+      name: cluster
+      repository: https://cloudnative-pg.github.io/charts
+      version: 0.3.1
+    description: Centrifuge public API (PostGraphile GraphQL) and chain-event-handlers
+      (Kafka consumer) with CloudNative-PG
+    digest: da64212d5a723eaee94909a86463b57b0c52dff430553a67b007ef63bfa7db48
+    name: centrifuge-api-v4-public
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-public-0.1.3/centrifuge-api-v4-public-0.1.3.tgz
+    version: 0.1.3
   - apiVersion: v2
     appVersion: 0.1.0
     created: "2026-08-25T09:11:03.368286686Z"
@@ -3165,4 +3198,4 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/redpanda-0.1.2/redpanda-0.1.2.tgz
     version: 0.1.2
-generated: "2026-08-26T17:37:11.794926014Z"
+generated: "2026-09-03T08:02:14.614112409Z"
