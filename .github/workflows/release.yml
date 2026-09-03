@@ -142,11 +142,17 @@ jobs:
           owner="${GITHUB_REPOSITORY%/*}"
           repo="${GITHUB_REPOSITORY#*/}"
           rm -rf .cr-index
-          mkdir -p .cr-index
+          mkdir -p .cr-index .cr-release-packages
           ./cr upload -o "$owner" -r "$repo" -c "$(git rev-parse HEAD)" --skip-existing
+          # cr index only sees local tgz. A failed index step can leave a GitHub
+          # Release with no gh-pages entry; pull those assets before indexing.
+          gh release list --limit 200 --json tagName --jq '.[].tagName' | while read -r tag; do
+            gh release download "$tag" --pattern '*.tgz' --dir .cr-release-packages --clobber
+          done
           ./cr index -o "$owner" -r "$repo" --push
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Commit version bumps
         if: steps.changed.outputs.changed == 'true' && steps.changed.outputs.bump == 'true'
