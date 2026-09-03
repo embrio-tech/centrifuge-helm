@@ -1,19 +1,26 @@
 name: Release Charts
 
-# Publishes all Helm charts under charts/ (api-v2, api-v3, erpc, redpanda,
-# api-v4-event-lake, api-v4-public-api) when files under charts/** change.
-# Chart-releaser packages each chart and uploads new versions to GitHub Pages.
+# Publishes Helm charts under charts/ to GitHub Pages.
+# Triggers on chart changes, release-infra changes (workflow/scripts), or manual dispatch.
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      charts:
+        description: "Charts to release (comma-separated, empty = all)"
+        required: false
+        default: ""
+      bump_version:
+        description: "Bump patch version before release"
+        type: boolean
+        default: false
 
 jobs:
   release:
-    # depending on default permission settings for your org (contents being read-only or read-write for workloads), you will have to add permissions
-    # see: https://docs.github.com/en/actions/security-guides/automatic-token-authentication#modifying-the-permissions-for-the-github_token
-    if: "!contains(github.event.head_commit.message, '[skip release]')"
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip release]')
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -25,32 +32,73 @@ jobs:
 
       - name: Detect changed chart directories
         id: changed-files
+        if: github.event_name == 'push'
         uses: tj-actions/changed-files@v45
         with:
-          files: charts/**
+          files: |
+            charts/**
+            .github/workflows/release.yml
+            scripts/fetch-chart-dependencies.sh
           dir_names: true
           dir_names_max_depth: 2
           json: false
 
-      - name: Build changed chart list
+      - name: Build chart release list
         id: changed
         run: |
           set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            requested='${{ inputs.charts }}'
+            if [ -n "$requested" ]; then
+              CHARTS="$(echo "$requested" | tr ',' ' ' | xargs)"
+            else
+              CHARTS="$(find charts -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort | tr '\n' ' ' | xargs)"
+            fi
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "charts=$CHARTS" >> "$GITHUB_OUTPUT"
+            if [ "${{ inputs.bump_version }}" = "true" ]; then
+              echo "bump=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "bump=false" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+
           CHANGED_DIRS='${{ steps.changed-files.outputs.all_changed_files }}'
           if [ -z "$CHANGED_DIRS" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          CHANGED_CHARTS="$(printf '%s\n' $CHANGED_DIRS | tr ' ' '\n' | awk -F/ 'NF>=2{print $2}' | sort -u | tr '\n' ' ' | xargs)"
-          if [ -z "$CHANGED_CHARTS" ]; then
+
+          INFRA_CHANGED=false
+          for path in $CHANGED_DIRS; do
+            case "$path" in
+              .github/workflows/release.yml|scripts/fetch-chart-dependencies.sh)
+                INFRA_CHANGED=true
+                ;;
+            esac
+          done
+
+          CHART_DIRS="$(printf '%s\n' $CHANGED_DIRS | tr ' ' '\n' | awk -F/ 'NF>=2 && $1=="charts" {print $2}' | sort -u | tr '\n' ' ' | xargs)"
+
+          if [ "$INFRA_CHANGED" = true ] && [ -z "$CHART_DIRS" ]; then
+            CHART_DIRS="$(find charts -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort | tr '\n' ' ' | xargs)"
+            echo "bump=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "bump=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ -z "$CHART_DIRS" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
           echo "changed=true" >> "$GITHUB_OUTPUT"
-          echo "charts=$CHANGED_CHARTS" >> "$GITHUB_OUTPUT"
+          echo "charts=$CHART_DIRS" >> "$GITHUB_OUTPUT"
 
       - name: Bump chart versions
-        if: steps.changed.outputs.changed == 'true'
+        if: steps.changed.outputs.changed == 'true' && steps.changed.outputs.bump == 'true'
         run: |
           set -euo pipefail
           for chart in ${{ steps.changed.outputs.charts }}; do
@@ -62,24 +110,15 @@ jobs:
             echo "$CHART_FILE: version: $version -> version: $new_version"
           done
 
-      - name: Commit version bumps
+      - name: Fetch chart dependencies
         if: steps.changed.outputs.changed == 'true'
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore: bump chart versions [skip release]"
-          file_pattern: "charts/*/Chart.yaml"
-          commit_user_name: "${{ github.actor }}"
-          commit_user_email: "${{ github.actor }}@users.noreply.github.com"
+        run: ./scripts/fetch-chart-dependencies.sh
 
       - name: Configure git identity for chart-releaser
         if: steps.changed.outputs.changed == 'true'
         run: |
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
-
-      - name: Fetch chart dependencies
-        if: steps.changed.outputs.changed == 'true'
-        run: ./scripts/fetch-chart-dependencies.sh
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.7.0
@@ -89,3 +128,12 @@ jobs:
           skip_existing: true
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Commit version bumps
+        if: steps.changed.outputs.changed == 'true' && steps.changed.outputs.bump == 'true'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: bump chart versions [skip release]"
+          file_pattern: "charts/*/Chart.yaml"
+          commit_user_name: "${{ github.actor }}"
+          commit_user_email: "${{ github.actor }}@users.noreply.github.com"

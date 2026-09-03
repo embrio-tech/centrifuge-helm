@@ -79,7 +79,7 @@ Runs Drizzle migrations at boot, so keep `replicaCount: 1` and a generous `start
 
 ## Release engineering
 
-`.github/workflows/release.yml` on push to `main`: detects changed dirs under `charts/**`, bumps the patch of each changed `Chart.yaml`, commits `chore: bump chart versions [skip release]`, fetches subchart dependencies, then runs chart-releaser (`skip_existing: true`) to publish to `gh-pages`.
+`.github/workflows/release.yml` on push to `main` (chart or release-script changes) or `workflow_dispatch`: bumps patch versions when chart templates change, fetches subchart dependencies, runs chart-releaser (`skip_existing: true`), then commits version bumps. Infra-only changes republish all charts without bumping. Use **Actions → Release Charts → Run workflow** to republish after a failed release.
 
 - Do not bump `version` in a PR, the workflow does it.
 - Do not put `[skip release]` in a normal commit, that skips the whole job.
