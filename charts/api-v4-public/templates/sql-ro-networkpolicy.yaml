@@ -1,0 +1,26 @@
+{{- $hostname := .Values.global.sqlRoHostname | default "" }}
+{{- if $hostname }}
+{{- if not .Values.postgres.enabled }}
+{{- fail "sqlRo requires postgres.enabled" }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "centrifuge-api-v4-public.sqlRo.fullname" . }}
+  labels:
+    {{- include "centrifuge-api-v4-public.sqlRo.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/poolerName: {{ include "centrifuge-api-v4-public.sqlRo.poolerName" . | quote }}
+  policyTypes:
+    - Ingress
+  ingress:
+    # Internet SQL + Octavia/NodePort health checks (tenant default-deny).
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 5432
+{{- end }}
