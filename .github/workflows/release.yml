@@ -114,6 +114,16 @@ jobs:
         if: steps.changed.outputs.changed == 'true'
         run: ./scripts/fetch-chart-dependencies.sh
 
+      - name: Package charts
+        if: steps.changed.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p .cr-release-packages
+          for chart in charts/*/; do
+            [ -f "${chart}Chart.yaml" ] || continue
+            helm package "$chart" --dependency-update=false --destination .cr-release-packages
+          done
+
       - name: Configure git identity for chart-releaser
         if: steps.changed.outputs.changed == 'true'
         run: |
@@ -125,7 +135,7 @@ jobs:
         if: steps.changed.outputs.changed == 'true'
         with:
           charts_dir: charts
-          config: .cr.yaml
+          skip_packaging: true
           skip_existing: true
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"

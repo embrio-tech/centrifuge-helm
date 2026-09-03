@@ -1,4 +1,5 @@
 compose.yml
 
-# Helm subchart archives; fetched at release time and for local helm dependency update.
+# Helm subchart archives. Fetched in CI / locally; never committed.
 charts/*/charts/*.tgz
+.cr-release-packages/

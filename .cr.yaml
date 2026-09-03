@@ -1,2 +1,0 @@
-# chart-releaser config. Dependencies are prefetched by scripts/fetch-chart-dependencies.sh.
-package-extra-args: --dependency-update=false
