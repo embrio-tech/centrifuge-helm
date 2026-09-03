@@ -2,7 +2,7 @@ apiVersion: v2
 name: centrifuge-api-v4-public
 description: Centrifuge public API (PostGraphile GraphQL) and chain-event-handlers (Kafka consumer) with CloudNative-PG
 type: application
-version: 0.1.5
+version: 0.1.6
 appVersion: "0.1.0"
 dependencies:
   - alias: postgres
