@@ -125,6 +125,7 @@ jobs:
         if: steps.changed.outputs.changed == 'true'
         with:
           charts_dir: charts
+          config: .cr.yaml
           skip_existing: true
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
