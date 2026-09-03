@@ -53,7 +53,7 @@ Topics: `<network>.protocol-events.speculative` (compacted), `<network>.protocol
 ## Chart conventions (follow exactly)
 
 1. `Chart.yaml`: `apiVersion: v2`, `type: application`, `appVersion` informational. Never bump `version` by hand, CI does it.
-2. Dependencies are vendored: run `helm dependency update charts/<dir>` and commit `charts/<dir>/charts/*.tgz` plus `Chart.lock`.
+2. Dependencies are vendored: run `helm dependency update charts/<dir>` locally and commit `charts/<dir>/charts/*.tgz` plus `Chart.lock`. Release CI does not fetch external Helm repos (CNPG/Bitnami/Redpanda DNS is unreliable in Actions); missing tgz fails the verify step.
 3. Helpers: chart-level `_helpers.tpl` defines `<prefix>.{name,fullname,chart,labels,selectorLabels}`. Each component gets `_helpers-<component>.tpl` with `<prefix>.<component>.*`. Component fullname is `<release>-<component>` unless the release name already contains the component name. Everything truncates at 63 chars.
 4. No chart ever creates a Secret. Secrets are pre-deployed by ops and referenced by name through `global.*SecretName`. Non-secret env goes into ConfigMap `<release>-config` rendered from `global.env` as a `pre-install,pre-upgrade` hook.
 5. CNPG is the `cluster` subchart v0.3.1 aliased `postgres`, `postgres.enabled: false` by default, configured under top-level `postgres:`. Apps read credentials from `<release>-postgres-app` (keys `uri`, `host`, `port`, `username`, `password`, `dbname`) via the `<prefix>.dbSecretName` helper. Never hardcode the host or db name.
