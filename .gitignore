@@ -4,3 +4,5 @@ compose.yml
 charts/*/charts/*.tgz
 .cr-release-packages/
 .cr-index/
+# Local credential dumps
+sql.txt
