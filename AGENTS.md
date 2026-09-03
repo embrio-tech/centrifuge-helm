@@ -53,7 +53,7 @@ Topics: `<network>.protocol-events.speculative` (compacted), `<network>.protocol
 ## Chart conventions (follow exactly)
 
 1. `Chart.yaml`: `apiVersion: v2`, `type: application`, `appVersion` informational. Never bump `version` by hand, CI does it.
-2. Dependencies are vendored: run `helm dependency update charts/<dir>` locally and commit `charts/<dir>/charts/*.tgz` plus `Chart.lock`. Release CI does not fetch external Helm repos (CNPG/Bitnami/Redpanda DNS is unreliable in Actions); missing tgz fails the verify step.
+2. External dependencies are not committed. `Chart.lock` is committed; subchart `.tgz` archives are fetched at release time (`scripts/fetch-chart-dependencies.sh`) and gitignored. CNPG charts download from GitHub releases (not `cloudnative-pg.io`, which times out in Actions). For local work run `./scripts/fetch-chart-dependencies.sh` or `helm dependency update charts/<dir>`.
 3. Helpers: chart-level `_helpers.tpl` defines `<prefix>.{name,fullname,chart,labels,selectorLabels}`. Each component gets `_helpers-<component>.tpl` with `<prefix>.<component>.*`. Component fullname is `<release>-<component>` unless the release name already contains the component name. Everything truncates at 63 chars.
 4. No chart ever creates a Secret. Secrets are pre-deployed by ops and referenced by name through `global.*SecretName`. Non-secret env goes into ConfigMap `<release>-config` rendered from `global.env` as a `pre-install,pre-upgrade` hook.
 5. CNPG is the `cluster` subchart v0.3.1 aliased `postgres`, `postgres.enabled: false` by default, configured under top-level `postgres:`. Apps read credentials from `<release>-postgres-app` (keys `uri`, `host`, `port`, `username`, `password`, `dbname`) via the `<prefix>.dbSecretName` helper. Never hardcode the host or db name.
@@ -79,7 +79,7 @@ Runs Drizzle migrations at boot, so keep `replicaCount: 1` and a generous `start
 
 ## Release engineering
 
-`.github/workflows/release.yml` on push to `main`: detects changed dirs under `charts/**`, bumps the patch of each changed `Chart.yaml`, commits `chore: bump chart versions [skip release]`, re-vendors dependencies for all charts, then runs chart-releaser (`skip_existing: true`) to publish to `gh-pages`.
+`.github/workflows/release.yml` on push to `main`: detects changed dirs under `charts/**`, bumps the patch of each changed `Chart.yaml`, commits `chore: bump chart versions [skip release]`, fetches subchart dependencies, then runs chart-releaser (`skip_existing: true`) to publish to `gh-pages`.
 
 - Do not bump `version` in a PR, the workflow does it.
 - Do not put `[skip release]` in a normal commit, that skips the whole job.
@@ -88,7 +88,7 @@ Runs Drizzle migrations at boot, so keep `replicaCount: 1` and a generous `start
 ## Local checks (run before proposing a change)
 
 ```bash
-helm dependency update charts/<dir>
+./scripts/fetch-chart-dependencies.sh
 helm lint charts/<dir>
 helm template test charts/<dir> --set postgres.enabled=true | less
 ```

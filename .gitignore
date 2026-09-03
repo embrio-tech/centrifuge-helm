@@ -1,1 +1,4 @@
 compose.yml
+
+# Helm subchart archives; fetched at release time and for local helm dependency update.
+charts/*/charts/*.tgz
