@@ -11,7 +11,7 @@ External Kafka / Schema Registry / Admin are disabled. Do not re-enable
 
 Bootstrap:
   topics  {{ if .Values.bootstrap.topics.enabled }}enabled (1 partition, RF {{ .Values.bootstrap.topics.replicas }}){{ else }}disabled{{ end }}
-  schemas {{ if .Values.bootstrap.schemas.enabled }}enabled (image {{ .Values.bootstrap.schemas.image.repository }}:{{ .Values.bootstrap.schemas.image.tag }}){{ else }}disabled — needs cfg-cli in the event-lake image{{ end }}
+  schemas {{ if .Values.bootstrap.schemas.enabled }}enabled (image {{ .Values.bootstrap.schemas.image.repository }}:{{ .Values.bootstrap.schemas.image.tag }}){{ else }}disabled (opt-in; indexers register CFG_NETWORK subjects at start){{ end }}
 
 Protocol-event topics (do not raise partitions; handlers require ordering):
 {{- range .Values.bootstrap.topics.networks }}

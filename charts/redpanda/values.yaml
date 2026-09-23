@@ -194,7 +194,11 @@ bootstrap:
         memory: 256Mi
   # -- Schema bootstrap. Registers protobuf subjects `<topic>-value` for every
   # name in bootstrap.topics.networks via `cfg-cli events schemas update -n`.
-  # Requires cfg-cli in the event-lake image. The Job loops networks because
+  # Requires cfg-cli in the event-lake image (pin image.tag to an event-lake sha).
+  # Disabled by default so a Redpanda-only install does not fail its Helm hook
+  # when that image cannot be pulled. Event-lake indexers also register their
+  # CFG_NETWORK subjects at container start. Enable here for cluster-wide
+  # bootstrap on Redpanda install/upgrade. The Job loops networks because
   # cfg-cli defaults to mainnet when CFG_NETWORK / --network is unset.
   schemas:
     enabled: false

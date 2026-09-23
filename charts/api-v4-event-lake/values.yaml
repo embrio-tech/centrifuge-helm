@@ -6,10 +6,10 @@ global:
   env:
     CFG_NETWORK: "mainnet"
     SELECTED_NETWORKS: "1,8453"
-    # Folds the published registry layers into handler versions. Required: repeated version
-    # slugs in the registry chain otherwise collide on one generated file and the surviving
-    # blob can hold null addresses, which makes the indexer publish nothing. Same value as api-v3.
-    REGISTRY_VERSION_MAP: '{"v3":"v3","v3_1":["v3_1","v3_2"]}'
+    # Published revisions this build indexes. The indexer refuses REGISTRY_VERSION_MAP.
+    # Mainnet is v3,v3_2. Testnet env files override this with v3_3. Do not list both
+    # v3_1 and v3_2: v3_2 already includes the v3_1 deltas.
+    REGISTRY_INCLUDE: "v3,v3_2"
     REDPANDA_BROKERS: "cfg-api-redpanda:9093"
     REDPANDA_SCHEMA_REGISTRY_URL: "http://cfg-api-redpanda:8081"
     LOG_LEVEL: "info"
