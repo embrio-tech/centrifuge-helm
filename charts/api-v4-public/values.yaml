@@ -7,7 +7,6 @@ global:
     CFG_NETWORK: "mainnet"
     NODE_ENV: "production"
     PUBLIC_API_PORT: "5000"
-    PUBLIC_DB_BASELINE_SCHEMA: "chain_v1"
     HANDLERS_HEALTH_PORT: "3001"
     PUBLIC_API_HEALTH_TIMEOUT_MS: "300000"   # migrations can take a while on first boot
     PUBLIC_API_HEALTH_RETRY_MS: "2000"
@@ -41,6 +40,8 @@ query:
       nginx.ingress.kubernetes.io/ssl-redirect: "true"
     hosts: []
     tls: []
+    # Empty uses this release's query Service. Promotion sets the idle slot's query Service.
+    backendService: ""
   resources:
     requests: { cpu: 100m, memory: 512Mi }
     limits: { cpu: "1", memory: 512Mi }
@@ -87,15 +88,16 @@ handlers:
   resources:
     requests: { cpu: 250m, memory: 1Gi }
     limits: { cpu: "1", memory: 2Gi }
-  # /health only starts after public-api is reachable and the DB pool is open.
-  # The full Kafka replay happens afterwards and can take minutes; /health stays up.
+  # /health is 200 from process start. /ready stays 503 until replay finishes
+  # and the live consumer is running. Liveness stays on /health. The Deployment
+  # progress deadline is 1h. replicaCount may be 0 until the indexer is ready.
   startupProbe:
     httpGet: { path: /health, port: 3001 }
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 90
   readinessProbe:
-    httpGet: { path: /health, port: 3001 }
+    httpGet: { path: /ready, port: 3001 }
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 3
@@ -111,6 +113,11 @@ handlers:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+
+# Tag the public views read. Set on the release that owns the database.
+# Staging leaves this empty and sets postgres.enabled false.
+publicViews:
+  schema: ""
 
 postgres:
   enabled: false

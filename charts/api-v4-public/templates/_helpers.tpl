@@ -72,3 +72,25 @@ Application credentials secret: <this>-app (key uri, username, password, ...).
 {{- define "centrifuge-api-v4-public.dbSecretName" -}}
 {{- .Values.global.dbSecretName | default (printf "%s-app" (include "centrifuge-api-v4-public.cnpgClusterFullname" .)) }}
 {{- end }}
+
+{{/*
+Handlers image tag used as the public schema name. latest is refused.
+*/}}
+{{- define "centrifuge-api-v4-public.publicSchema" -}}
+{{- $tag := .Values.handlers.image.tag | default "" | toString -}}
+{{- if not (regexMatch "^sha-[0-9a-f]+$" $tag) -}}
+{{- fail "handlers.image.tag must be an immutable sha- tag. latest is not a schema name." -}}
+{{- end -}}
+{{- $tag -}}
+{{- end }}
+
+{{/*
+Indexer generation the handlers consumer reads. Required on every public release.
+*/}}
+{{- define "centrifuge-api-v4-public.indexGeneration" -}}
+{{- $generation := index .Values.global.env "INDEX_GENERATION" | default "" | toString -}}
+{{- if not (regexMatch "^id[0-9]{12}$" $generation) -}}
+{{- fail "INDEX_GENERATION must match id plus 12 digits (for example id202609301918)" -}}
+{{- end -}}
+{{- $generation -}}
+{{- end }}

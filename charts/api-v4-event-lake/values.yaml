@@ -63,14 +63,16 @@ indexer:
     limits:
       cpu: "2"
       memory: 4Gi
-  # /health returns 200 as soon as the entrypoint runs (before indexing catches up).
+  # /health returns 200 as soon as the entrypoint runs. /ready stays 503 until
+  # every selected chain is realtime. Liveness stays on /health so a long
+  # reindex is not killed. progressDeadlineSeconds on the Deployment is 12h.
   startupProbe:
     httpGet: { path: /health, port: 8080 }
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 60
   readinessProbe:
-    httpGet: { path: /health, port: 8080 }
+    httpGet: { path: /ready, port: 8080 }
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 3

@@ -1,4 +1,10 @@
 {{- if .Values.bootstrap.schemas.enabled }}
+{{- if not .Values.bootstrap.topics.generations }}
+{{- fail "bootstrap.topics.generations must list at least one INDEX_GENERATION" }}
+{{- end }}
+{{- if not (regexMatch "^sha-[0-9a-f]+$" (.Values.bootstrap.schemas.image.tag | default "" | toString)) }}
+{{- fail "bootstrap.schemas.image.tag must be an immutable sha- tag of an event-lake image whose cfg-cli accepts INDEX_GENERATION" }}
+{{- end }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -60,7 +66,9 @@ spec:
               done
               echo "registering protocol-event schemas"
               for NET in {{ range .Values.bootstrap.topics.networks }}{{ . }} {{ end }}; do
-                echo "registering ${NET} protocol-event schemas"
-                node packages/cfg-cli/dist/index.js events schemas update -n "$NET"
+                for GEN in {{ range .Values.bootstrap.topics.generations }}{{ . }} {{ end }}; do
+                  echo "registering ${NET} ${GEN} protocol-event schemas"
+                  node packages/cfg-cli/dist/index.js events schemas update -n "$NET" -g "$GEN"
+                done
               done
 {{- end }}

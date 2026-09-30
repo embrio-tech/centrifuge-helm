@@ -73,6 +73,8 @@ spec:
                 secretKeyRef:
                   name: {{ include "centrifuge-api-v4-public.dbSecretName" . }}
                   key: uri
+            - name: PUBLIC_SCHEMA
+              value: {{ include "centrifuge-api-v4-public.publicSchema" . | quote }}
           {{- with .Values.query.env }}
             {{- toYaml . | nindent 12 }}
           {{- end }}

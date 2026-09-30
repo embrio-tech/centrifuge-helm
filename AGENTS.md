@@ -67,15 +67,15 @@ Topics: `<network>.protocol-events.speculative` (compacted), `<network>.protocol
 ## Component facts that constrain the templates
 
 **event-lake indexer** (`ghcr.io/centrifuge/event-lake`, port 8080, `GET /health`):
-Postgres via split vars `ENVIO_PG_HOST|PORT|USER|PASSWORD|DATABASE`, all `secretKeyRef` into the CNPG app secret. `ENVIO_PG_SCHEMA` is the indexer image tag (same pattern as api-v3 `DATABASE_SCHEMA`). Envio runs its own migrations. Network selection is env only (`CFG_NETWORK`, `SELECTED_NETWORKS`, `REGISTRY_INCLUDE`). `ENVIO_RPC_URL_<chainId>` is required per selected chain and is generated in the ConfigMap by the `erpcRpcEnv` helper from `erpc.urlTemplate` (`%s` = chain id), skipping keys already present in `global.env`. `REDPANDA_CLIENT_ID` must be unique per release (`envio-origination-<release>`) because hydration uses a temporary consumer group derived from it. `/health` turns 200 at entrypoint, well before the indexer is caught up.
+Postgres via split vars `ENVIO_PG_HOST|PORT|USER|PASSWORD|DATABASE`, all `secretKeyRef` into the CNPG app secret. `ENVIO_PG_SCHEMA` is `INDEX_GENERATION` (`id` plus 12 digits). A missing or malformed value fails the render. Envio runs its own migrations. Network selection is env only (`CFG_NETWORK`, `SELECTED_NETWORKS`, `REGISTRY_INCLUDE`). `ENVIO_RPC_URL_<chainId>` is required per selected chain and is generated in the ConfigMap by the `erpcRpcEnv` helper from `erpc.urlTemplate` (`%s` = chain id), skipping keys already present in `global.env`. `REDPANDA_CLIENT_ID` must be unique per release (`envio-origination-<release>`) because hydration uses a temporary consumer group derived from it. `/health` turns 200 at entrypoint, well before the indexer is caught up.
 
-**handlers** (`ghcr.io/centrifuge/chain-event-handlers`, port 3001, `GET /health`):
-`replicaCount: 1` forever, the consumer group id IS `REDPANDA_CLIENT_ID`. Every start waits for `PUBLIC_API_HEALTH_URL`, truncates projection tables and replays Kafka from the beginning, which takes minutes. No TLS and no SASL in its Kafka client, hence plaintext in-cluster Redpanda. Does not run migrations. `PUBLIC_API_HEALTH_URL` must be built from the query fullname helper plus `query.service.port`, not hardcoded.
+**handlers** (`ghcr.io/centrifuge/chain-event-handlers`, port 3001, `GET /health`, `GET /ready`):
+`replicaCount` may be 0 while the indexer is still backfilling. The consumer group id IS `REDPANDA_CLIENT_ID`. Every start waits for `PUBLIC_API_HEALTH_URL`, truncates projection tables and replays Kafka from the beginning, which takes minutes. Startup and liveness stay on `/health`. Readiness is `/ready`, which stays 503 until replay finishes and the live consumer is running. `progressDeadlineSeconds` is 3600. No TLS and no SASL in its Kafka client, hence plaintext in-cluster Redpanda. Does not run migrations. `PUBLIC_SCHEMA` is `handlers.image.tag` (`sha-` plus hex). `PUBLIC_API_HEALTH_URL` must be built from the query fullname helper plus `query.service.port`, not hardcoded.
 
 **public-api / query** (`ghcr.io/centrifuge/public-api`, port 5000, `GET /health`, GraphQL at `/graphql`):
 Runs Drizzle migrations at boot, so keep `replicaCount: 1` and a generous `startupProbe.failureThreshold`. `POSTGRAPHILE_DATABASE_URL` from secret key `uri`.
 
-**redpanda**: bootstrap Jobs are `post-install,post-upgrade` hooks, weight `0` (topics, rpk) then `1` (schemas, `cfg-cli events schemas update`, disabled until an event-lake image with cfg-cli is published). Both poll for readiness first because Helm returns before the StatefulSet is Ready, and both must be idempotent. `centrifuge-redpanda.name` is `redpanda-bootstrap`, never `redpanda`: the upstream Kafka Service selects on `app.kubernetes.io/name: redpanda` + instance with no component label, so a Job pod named `redpanda` would join the Kafka, Schema Registry and Admin endpoints while it runs.
+**redpanda**: bootstrap Jobs are `post-install,post-upgrade` hooks, weight `0` (topics, rpk) then `1` (schemas, `cfg-cli events schemas update -n -g`). `bootstrap.topics.generations` must list at least one `INDEX_GENERATION`. The schema image tag must be an event-lake `sha-` tag whose cfg-cli accepts that flag. An empty generations list or a `latest` tag fails the render. Existing unscoped topics are left in the cluster. Both poll for readiness first because Helm returns before the StatefulSet is Ready, and both must be idempotent. `centrifuge-redpanda.name` is `redpanda-bootstrap`, never `redpanda`: the upstream Kafka Service selects on `app.kubernetes.io/name: redpanda` + instance with no component label, so a Job pod named `redpanda` would join the Kafka, Schema Registry and Admin endpoints while it runs.
 
 ## Release engineering
 
@@ -100,7 +100,7 @@ Available locally: `helm` v4, `yq` v4, `kubectl`. No cluster access is assumed. 
 ## Hard rules
 
 - No Secrets rendered by any chart, ever.
-- `handlers` and `indexer`: `replicaCount: 1`, `strategy: Recreate`, no HPA.
+- `indexer`: `replicaCount: 1`, `strategy: Recreate`, no HPA. `handlers`: `strategy: Recreate`, no HPA, `replicaCount` may be 0.
 - Never raise topic partitions above 1 (ordering) and keep speculative compacted.
 - Redpanda Kafka, Schema Registry and Admin stay cluster-internal. No TLS, no SASL (app limitation). Only Console may get an Ingress, and it has no auth.
 - No init containers or migration Jobs for public-db. `public-api` owns those migrations.

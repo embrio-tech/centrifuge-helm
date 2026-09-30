@@ -7,6 +7,7 @@ metadata:
     {{- include "centrifuge-api-v4-public.handlers.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.handlers.replicaCount }}
+  progressDeadlineSeconds: 3600
   strategy:
     type: Recreate
   selector:
@@ -72,6 +73,10 @@ spec:
                   key: uri
             - name: REDPANDA_CLIENT_ID
               value: {{ printf "cfg-handlers-%s" .Release.Name | quote }}
+            - name: PUBLIC_SCHEMA
+              value: {{ include "centrifuge-api-v4-public.publicSchema" . | quote }}
+            - name: INDEX_GENERATION
+              value: {{ include "centrifuge-api-v4-public.indexGeneration" . | quote }}
             - name: PUBLIC_API_HEALTH_URL
               value: {{ printf "http://%s:%v/health" (include "centrifuge-api-v4-public.query.fullname" .) .Values.query.service.port | quote }}
           {{- with .Values.handlers.env }}
