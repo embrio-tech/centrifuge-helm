@@ -1,0 +1,42 @@
+# Argo CD Application: public-api + handlers for mainnet staging (alpha).
+# Namespace: cfg-api. Sync wave 1 (after Redpanda).
+# Uses the prod CNPG secret. Does not create a cluster or a views Job.
+# handlers.replicaCount stays 0 until the staging indexer is ready.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cfg-api-v4-public-main-s
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: cfg-api
+  sources:
+    - repoURL: https://embrio-tech.github.io/centrifuge-helm
+      targetRevision: "0.1.10"
+      chart: centrifuge-api-v4-public
+      helm:
+        releaseName: cfg-api-v4-public-main-s
+        valueFiles:
+          - $values/environments/main-s.yaml
+        values: |
+          global:
+            dbSecretName: cfg-api-v4-public-main-postgres-app
+            env:
+              INDEX_GENERATION: "id202610011206"
+          query:
+            image:
+              tag: sha-36b6fa4
+          handlers:
+            replicaCount: 0
+            image:
+              tag: sha-36b6fa4
+          postgres:
+            enabled: false
+    - repoURL: git@github.com:centrifuge/backend.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cfg-api
