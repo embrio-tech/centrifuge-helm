@@ -9,24 +9,28 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: cfg-api-redpanda
-  namespace: argocd
+  namespace: argo
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:
   project: cfg-api
   source:
     repoURL: https://embrio-tech.github.io/centrifuge-helm
-    targetRevision: "0.1.0"
+    targetRevision: "0.1.9"
     chart: redpanda
     helm:
       releaseName: cfg-api-redpanda
       values: |
         bootstrap:
+          topics:
+            generations:
+              - id202610011054
+              - id202610011206
           schemas:
             enabled: true
             image:
               repository: ghcr.io/centrifuge/event-lake
-              tag: latest
+              tag: sha-6757123
         redpanda:
           storage:
             persistentVolume:

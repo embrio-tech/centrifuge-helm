@@ -1,0 +1,37 @@
+# Argo CD Application: event-lake indexer for mainnet staging (alpha).
+# Namespace: cfg-api. Sync wave 1 (after Redpanda topics/schemas).
+# Uses the prod CNPG secret. Does not create a cluster.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cfg-api-v4-event-lake-main-s
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: cfg-api
+  sources:
+    - repoURL: https://embrio-tech.github.io/centrifuge-helm
+      targetRevision: "0.1.6"
+      chart: centrifuge-api-v4-event-lake
+      helm:
+        releaseName: cfg-api-v4-event-lake-main-s
+        valueFiles:
+          - $values/environments/main-s.yaml
+        values: |
+          global:
+            dbSecretName: cfg-api-v4-event-lake-main-postgres-app
+            env:
+              INDEX_GENERATION: "id202610011206"
+          indexer:
+            image:
+              tag: sha-6757123
+          postgres:
+            enabled: false
+    - repoURL: git@github.com:centrifuge/event-lake.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cfg-api
