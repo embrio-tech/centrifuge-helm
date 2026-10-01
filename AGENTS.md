@@ -48,7 +48,7 @@ Per region cluster (`eu` = main, `us` = `beta`), namespace `cfg-api`, Argo proje
 | `cfg-api-v4-event-lake-<name>` | `centrifuge-api-v4-event-lake` | one indexer + one Postgres per env (`main`, `main-us`, `test`, …) |
 | `cfg-api-v4-public-<name>` | `centrifuge-api-v4-public` | handlers + query + public-db per env |
 
-Topics: `<network>.protocol-events.speculative` (compacted), `<network>.protocol-events.confirmed`, `<network>.protocol-events-dlq`. 1 partition, RF 3.
+Topics are scoped by network and indexer generation (`INDEX_GENERATION`, `id` plus 12 digits): `<network>.<generation>.protocol-events.speculative` (compacted), `<network>.<generation>.protocol-events.confirmed`, `<network>.<generation>.protocol-events-dlq`. 1 partition, RF 3. A new generation is a new topic triple; the unscoped `<network>.protocol-events.*` topics from before the cutover are left in place and no longer written.
 
 ## Chart conventions (follow exactly)
 
@@ -66,8 +66,8 @@ Topics: `<network>.protocol-events.speculative` (compacted), `<network>.protocol
 
 ## Component facts that constrain the templates
 
-**event-lake indexer** (`ghcr.io/centrifuge/event-lake`, port 8080, `GET /health`):
-Postgres via split vars `ENVIO_PG_HOST|PORT|USER|PASSWORD|DATABASE`, all `secretKeyRef` into the CNPG app secret. `ENVIO_PG_SCHEMA` is `INDEX_GENERATION` (`id` plus 12 digits). A missing or malformed value fails the render. Envio runs its own migrations. Network selection is env only (`CFG_NETWORK`, `SELECTED_NETWORKS`, `REGISTRY_INCLUDE`). `ENVIO_RPC_URL_<chainId>` is required per selected chain and is generated in the ConfigMap by the `erpcRpcEnv` helper from `erpc.urlTemplate` (`%s` = chain id), skipping keys already present in `global.env`. `REDPANDA_CLIENT_ID` must be unique per release (`envio-origination-<release>`) because hydration uses a temporary consumer group derived from it. `/health` turns 200 at entrypoint, well before the indexer is caught up.
+**event-lake indexer** (`ghcr.io/centrifuge/event-lake`, port 8080, `GET /health`, `GET /ready`):
+Postgres via split vars `ENVIO_PG_HOST|PORT|USER|PASSWORD|DATABASE`, all `secretKeyRef` into the CNPG app secret. `ENVIO_PG_SCHEMA` is `INDEX_GENERATION` (`id` plus 12 digits). A missing or malformed value fails the render. Envio runs its own migrations. Network selection is env only (`CFG_NETWORK`, `SELECTED_NETWORKS`, `REGISTRY_INCLUDE`). `ENVIO_RPC_URL_<chainId>` is required per selected chain and is generated in the ConfigMap by the `erpcRpcEnv` helper from `erpc.urlTemplate` (`%s` = chain id), skipping keys already present in `global.env`. `REDPANDA_CLIENT_ID` must be unique per release (`envio-origination-<release>`) because hydration uses a temporary consumer group derived from it. `/health` turns 200 at entrypoint, well before the indexer is caught up, and mirrors Envio's `/healthz` once Envio is up. `/ready` stays 503 until Envio's `envio_progress_ready` gauge is 1 for every chain in `SELECTED_NETWORKS`; the entrypoint reads Envio's `/metrics` on `ENVIO_INDEXER_PORT` (9898) for that. Startup and liveness on `/health`, readiness on `/ready`.
 
 **handlers** (`ghcr.io/centrifuge/chain-event-handlers`, port 3001, `GET /health`, `GET /ready`):
 `replicaCount` may be 0 while the indexer is still backfilling. The consumer group id IS `REDPANDA_CLIENT_ID`. Every start waits for `PUBLIC_API_HEALTH_URL`, truncates projection tables and replays Kafka from the beginning, which takes minutes. Startup and liveness stay on `/health`. Readiness is `/ready`, which stays 503 until replay finishes and the live consumer is running. `progressDeadlineSeconds` is 3600. No TLS and no SASL in its Kafka client, hence plaintext in-cluster Redpanda. Does not run migrations. `PUBLIC_SCHEMA` is `handlers.image.tag` (`sha-` plus hex). `PUBLIC_API_HEALTH_URL` must be built from the query fullname helper plus `query.service.port`, not hardcoded.
