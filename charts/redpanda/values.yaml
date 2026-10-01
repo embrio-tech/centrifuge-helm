@@ -185,6 +185,9 @@ bootstrap:
     networks:
       - mainnet
       - testnet
+    # Indexer generation ids. Empty fails the render. Existing unscoped topics
+    # are left in the cluster. This job does not delete topics.
+    generations: []
     resources:
       requests:
         cpu: 200m
@@ -193,15 +196,11 @@ bootstrap:
         cpu: 200m
         memory: 256Mi
   # -- Schema bootstrap. Registers protobuf subjects `<topic>-value` for every
-  # name in bootstrap.topics.networks via `cfg-cli events schemas update -n`.
-  # Requires cfg-cli in the event-lake image (pin image.tag to an event-lake sha).
-  # Disabled by default so a Redpanda-only install does not fail its Helm hook
-  # when that image cannot be pulled. Event-lake indexers also register their
-  # CFG_NETWORK subjects at container start. Enable here for cluster-wide
-  # bootstrap on Redpanda install/upgrade. The Job loops networks because
-  # cfg-cli defaults to mainnet when CFG_NETWORK / --network is unset.
+  # network and generation via `cfg-cli events schemas update -n -g`.
+  # image.tag must be an event-lake sha whose cfg-cli accepts INDEX_GENERATION.
+  # The publisher only GETs subjects. This job creates them. It does not create topics.
   schemas:
-    enabled: false
+    enabled: true
     image:
       repository: ghcr.io/centrifuge/event-lake
       tag: "latest"

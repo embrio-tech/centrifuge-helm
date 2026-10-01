@@ -1,4 +1,12 @@
 {{- if .Values.bootstrap.topics.enabled }}
+{{- if not .Values.bootstrap.topics.generations }}
+{{- fail "bootstrap.topics.generations must list at least one INDEX_GENERATION" }}
+{{- end }}
+{{- range .Values.bootstrap.topics.generations }}
+{{- if not (regexMatch "^id[0-9]{12}$" (. | toString)) }}
+{{- fail "bootstrap.topics.generations entries must match id plus 12 digits" }}
+{{- end }}
+{{- end }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -58,7 +66,8 @@ spec:
               done
               echo "Kafka reachable; reconciling topics"
               for NET in {{ range .Values.bootstrap.topics.networks }}{{ . }} {{ end }}; do
-                for T in "${NET}.protocol-events.speculative" "${NET}.protocol-events.confirmed" "${NET}.protocol-events-dlq"; do
+                for GEN in {{ range .Values.bootstrap.topics.generations }}{{ . }} {{ end }}; do
+                for T in "${NET}.${GEN}.protocol-events.speculative" "${NET}.${GEN}.protocol-events.confirmed" "${NET}.${GEN}.protocol-events-dlq"; do
                   if rpk topic describe "$T" >/dev/null 2>&1; then
                     echo "exists ${T}"
                     continue
@@ -68,6 +77,7 @@ spec:
                   # shellcheck disable=SC2086
                   rpk topic create "$T" -p {{ .Values.bootstrap.topics.partitions }} -r {{ .Values.bootstrap.topics.replicas }} $EXTRA
                   echo "created ${T}"
+                done
                 done
               done
 {{- end }}

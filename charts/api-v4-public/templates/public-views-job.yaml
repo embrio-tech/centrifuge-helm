@@ -1,0 +1,189 @@
+{{- if .Values.postgres.enabled }}
+{{- $schema := .Values.publicViews.schema | default "" | toString }}
+{{- if not (regexMatch "^sha-[0-9a-f]+$" $schema) }}
+{{- fail "publicViews.schema must be the handlers tag the Ingress is serving" }}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "centrifuge-api-v4-public.fullname" . }}-public-views
+  labels:
+    {{- include "centrifuge-api-v4-public.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "5"
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        {{- include "centrifuge-api-v4-public.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: public-views
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "centrifuge-api-v4-public.dbSecretName" . }}
+                  key: uri
+            - name: PUBLIC_VIEWS_SCHEMA
+              value: {{ $schema | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v schema="$PUBLIC_VIEWS_SCHEMA" <<'SQL'
+              BEGIN;
+              SELECT set_config('public_views.tag', :'schema', true);
+              -- Everything below runs in one transaction, so readers see the old
+              -- views until COMMIT and the new ones after it, never a gap.
+              DO $body$
+              DECLARE
+                tag text := current_setting('public_views.tag');
+                enum_row record;
+                label_row record;
+                label_list text;
+                view_row record;
+                table_row record;
+                column_row record;
+                select_list text;
+                -- Handler-owned state, never a public read model. Keep in sync with
+                -- HANDLER_OWNED_TABLES in cfg-backend packages/public-db/src/schema-name.ts.
+                skip_tables text[] := ARRAY[
+                  'consumer_state',
+                  'projection_event',
+                  'daily_snapshot_state',
+                  'asset_address',
+                  'sync_manager_intent'
+                ];
+              BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = tag) THEN
+                  RAISE EXCEPTION 'schema % does not exist; the handlers for that tag have not migrated it yet', tag;
+                END IF;
+
+                -- public.<enum> mirrors the tag's enum so views can cast through text.
+                -- A tag may add labels; an existing public enum is widened to match.
+                -- Labels cannot be removed from an enum, so a retired label stays.
+                FOR enum_row IN
+                  SELECT t.typname
+                  FROM pg_type t
+                  JOIN pg_namespace n ON n.oid = t.typnamespace
+                  WHERE n.nspname = tag AND t.typtype = 'e'
+                LOOP
+                  IF NOT EXISTS (
+                    SELECT 1
+                    FROM pg_type t
+                    JOIN pg_namespace n ON n.oid = t.typnamespace
+                    WHERE n.nspname = 'public' AND t.typname = enum_row.typname
+                  ) THEN
+                    SELECT string_agg(quote_literal(e.enumlabel), ', ' ORDER BY e.enumsortorder)
+                      INTO label_list
+                    FROM pg_enum e
+                    JOIN pg_type t ON t.oid = e.enumtypid
+                    JOIN pg_namespace n ON n.oid = t.typnamespace
+                    WHERE n.nspname = tag AND t.typname = enum_row.typname;
+                    EXECUTE format('CREATE TYPE public.%I AS ENUM (%s)', enum_row.typname, label_list);
+                  ELSE
+                    FOR label_row IN
+                      SELECT e.enumlabel
+                      FROM pg_enum e
+                      JOIN pg_type t ON t.oid = e.enumtypid
+                      JOIN pg_namespace n ON n.oid = t.typnamespace
+                      WHERE n.nspname = tag AND t.typname = enum_row.typname
+                        AND NOT EXISTS (
+                          SELECT 1
+                          FROM pg_enum pe
+                          JOIN pg_type pt ON pt.oid = pe.enumtypid
+                          JOIN pg_namespace pn ON pn.oid = pt.typnamespace
+                          WHERE pn.nspname = 'public' AND pt.typname = enum_row.typname
+                            AND pe.enumlabel = e.enumlabel
+                        )
+                      ORDER BY e.enumsortorder
+                    LOOP
+                      EXECUTE format('ALTER TYPE public.%I ADD VALUE IF NOT EXISTS %L', enum_row.typname, label_row.enumlabel);
+                    END LOOP;
+                  END IF;
+                END LOOP;
+
+                -- Drop every view this job created for any tag before recreating.
+                -- CREATE OR REPLACE VIEW refuses a dropped, renamed or reordered
+                -- column, and a table that left the schema would otherwise keep a
+                -- view pointing at the previous tag.
+                FOR view_row IN
+                  SELECT DISTINCT c.relname
+                  FROM pg_class c
+                  JOIN pg_namespace n ON n.oid = c.relnamespace
+                  JOIN pg_rewrite r ON r.ev_class = c.oid
+                  JOIN pg_depend d ON d.objid = r.oid AND d.classid = 'pg_rewrite'::regclass
+                  JOIN pg_class dc ON dc.oid = d.refobjid
+                  JOIN pg_namespace dn ON dn.oid = dc.relnamespace
+                  WHERE n.nspname = 'public'
+                    AND c.relkind = 'v'
+                    AND dn.nspname ~ '^sha-[0-9a-f]+$'
+                LOOP
+                  EXECUTE format('DROP VIEW IF EXISTS public.%I', view_row.relname);
+                END LOOP;
+
+                FOR table_row IN
+                  SELECT c.relname AS table_name
+                  FROM pg_class c
+                  JOIN pg_namespace n ON n.oid = c.relnamespace
+                  WHERE n.nspname = tag
+                    AND c.relkind = 'r'
+                    AND NOT (c.relname = ANY (skip_tables))
+                  ORDER BY c.relname
+                LOOP
+                  select_list := '';
+                  FOR column_row IN
+                    SELECT a.attname AS column_name, t.typtype, nt.nspname AS type_schema, t.typname
+                    FROM pg_attribute a
+                    JOIN pg_class c ON c.oid = a.attrelid
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    JOIN pg_type t ON t.oid = a.atttypid
+                    JOIN pg_namespace nt ON nt.oid = t.typnamespace
+                    WHERE n.nspname = tag
+                      AND c.relname = table_row.table_name
+                      AND a.attnum > 0
+                      AND NOT a.attisdropped
+                    ORDER BY a.attnum
+                  LOOP
+                    IF select_list <> '' THEN
+                      select_list := select_list || ', ';
+                    END IF;
+                    IF column_row.typtype = 'e' AND column_row.type_schema = tag THEN
+                      select_list := select_list || format(
+                        '%I::text::public.%I AS %I',
+                        column_row.column_name,
+                        column_row.typname,
+                        column_row.column_name
+                      );
+                    ELSE
+                      select_list := select_list || format('%I', column_row.column_name);
+                    END IF;
+                  END LOOP;
+                  EXECUTE format(
+                    'CREATE VIEW public.%I AS SELECT %s FROM %I.%I',
+                    table_row.table_name,
+                    select_list,
+                    tag,
+                    table_row.table_name
+                  );
+                END LOOP;
+
+                IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'public_ro') THEN
+                  EXECUTE 'GRANT USAGE ON SCHEMA public TO public_ro';
+                  EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA public TO public_ro';
+                  EXECUTE 'ALTER ROLE public_ro SET search_path = public';
+                END IF;
+                EXECUTE 'REVOKE CREATE ON SCHEMA public FROM PUBLIC';
+              END
+              $body$;
+              COMMIT;
+              SQL
+{{- end }}

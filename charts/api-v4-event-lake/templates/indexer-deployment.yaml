@@ -7,6 +7,7 @@ metadata:
     {{- include "centrifuge-api-v4-event-lake.indexer.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.indexer.replicaCount }}
+  progressDeadlineSeconds: 43200
   strategy:
     type: Recreate
   selector:
@@ -97,7 +98,9 @@ spec:
                   name: {{ include "centrifuge-api-v4-event-lake.dbSecretName" . }}
                   key: password
             - name: ENVIO_PG_SCHEMA
-              value: {{ .Values.indexer.image.tag | default "latest" | quote }}
+              value: {{ include "centrifuge-api-v4-event-lake.indexGeneration" . | quote }}
+            - name: INDEX_GENERATION
+              value: {{ include "centrifuge-api-v4-event-lake.indexGeneration" . | quote }}
             - name: REDPANDA_CLIENT_ID
               value: {{ printf "envio-origination-%s" .Release.Name | quote }}
           {{- with .Values.indexer.env }}

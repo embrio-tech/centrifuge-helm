@@ -35,7 +35,7 @@ spec:
             {{- end }}
             backend:
               service:
-                name: {{ include "centrifuge-api-v4-public.query.fullname" $ }}
+                name: {{ $.Values.query.ingress.backendService | default (include "centrifuge-api-v4-public.query.fullname" $) }}
                 port:
                   number: {{ $.Values.query.service.port }}
           {{- end }}

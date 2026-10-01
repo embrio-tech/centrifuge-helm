@@ -101,3 +101,14 @@ eRPC. Skips keys already set in global.env. No-op when erpc.urlTemplate is empty
 {{- end -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+Indexer generation id. Required. This is ENVIO_PG_SCHEMA and the topic infix.
+*/}}
+{{- define "centrifuge-api-v4-event-lake.indexGeneration" -}}
+{{- $generation := index .Values.global.env "INDEX_GENERATION" | default "" | toString -}}
+{{- if not (regexMatch "^id[0-9]{12}$" $generation) -}}
+{{- fail "INDEX_GENERATION must match id plus 12 digits (for example id202609301918)" -}}
+{{- end -}}
+{{- $generation -}}
+{{- end }}
