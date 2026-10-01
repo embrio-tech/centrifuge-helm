@@ -1,7 +1,7 @@
 # Argo CD Application: public-api + handlers for mainnet staging (alpha).
 # Namespace: cfg-api. Sync wave 1 (after Redpanda).
 # Uses the prod CNPG secret. Does not create a cluster or a views Job.
-# handlers.replicaCount stays 0 until the staging indexer is ready.
+# Handlers replay the staging generation while the indexer is still backfilling.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -29,7 +29,7 @@ spec:
             image:
               tag: sha-36b6fa4
           handlers:
-            replicaCount: 0
+            replicaCount: 1
             image:
               tag: sha-36b6fa4
           postgres:
