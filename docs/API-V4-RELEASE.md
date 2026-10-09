@@ -1,166 +1,356 @@
-# api-v4 release
+# API v4 release
 
-For a developer shipping a change to origination, handlers, public-api, or any combination of them.
+This runbook is for a developer shipping a change to origination, handlers,
+public-api, or any combination of them. Topic infrastructure and live Argo CD
+administration are outside its scope. This document names the required
+prerequisites but does not describe those systems.
 
-Argo CD deploys what the value files name. A merge to `main` in event-lake or backend publishes images and does not change a running environment. Staging is a later pull request against the `-s` value files. Production is a pull request that copies the pins that already ran on staging.
+## Release model
 
-## What is deployed
-
-Two clusters. EU is the main cluster. US is `beta`. Origination and the public stack are one Helm release each per stem.
+The application path is:
 
 ```text
-chains -> event-lake (Envio) -> protocol-events topics
-       -> chain-event-handlers -> public-db (CNPG) -> public-api (PostGraphile)
+chains -> event-lake origination -> protocol-event topics
+       -> chain-event-handlers -> public-db -> public-api
 ```
 
-| Release | Chart | Values |
+Origination and the public stack are separate Helm releases. Each release reads
+one values file from an application repository:
+
+| Release | Values file |
+| --- | --- |
+| `cfg-api-v4-event-lake-<stem>` | `centrifuge/event-lake` `environments/<stem>.yaml` |
+| `cfg-api-v4-public-<stem>` | `centrifuge/backend` `environments/<stem>.yaml` |
+
+A stem is `<network>[-us][-s]`:
+
+- `main` or `test` selects the network.
+- `-us` selects the US cluster. No `-us` selects EU.
+- `-s` is staging. No `-s` is production.
+
+For example, `main-us-s` is US mainnet staging.
+
+The chart comes from this repository at the Argo Application's
+`targetRevision`. The values file comes from the application repository at
+`main`. Some staging Applications also carry inline Helm values. Inline values
+override the file, so a values PR does not change a pin that the live
+Application overrides.
+
+Before preparing a release, check the effective values in the live Argo
+Application. The manifests under `examples/` are snapshots for review, not the
+deployment source. Do not edit or apply them as a release action.
+
+A merge updates the desired values in git. It starts a rollout only when the
+live Application syncs. The example Applications do not enable automated sync,
+so do not treat merge as proof that a rollout started.
+
+## Release pins
+
+| Pin | Location | Purpose |
 | --- | --- | --- |
-| `cfg-api-v4-event-lake-<stem>` | `centrifuge-api-v4-event-lake` | `centrifuge/event-lake` `environments/<stem>.yaml` |
-| `cfg-api-v4-public-<stem>` | `centrifuge-api-v4-public` | `centrifuge/backend` `environments/<stem>.yaml` |
+| Origination image | event-lake `indexer.image.tag` | Selects `ghcr.io/centrifuge/event-lake` |
+| Backend images | backend `handlers.image.tag` and `query.image.tag` | Select the handlers and public-api images |
+| Projection schema | backend `handlers.image.tag` | Becomes `PUBLIC_SCHEMA` for both backend pods |
+| Public SQL views | backend `publicViews.schema` when `postgres.enabled: true` | Selects the tagged schema exposed through `public` views |
+| Ingestion generation | `INDEX_GENERATION` in both values files | Selects the Envio schema and protocol-event topics |
+| Envio config hash | event-lake `indexSchemaHash` | Records the generated Envio config accepted by that generation |
 
-Stems are `<network>[-us][-s]`: `main` or `test`, `-us` for the US cluster, `-s` for staging. No `-s` is production. `main-us-s` is US mainnet staging. One region does not have to move with the other.
+Use immutable `sha-<hex>` image tags. The image workflows currently produce
+seven-character tags such as `sha-6757123`. The chart accepts any non-empty
+hex length after `sha-`, but release values use the workflow's exact tag.
+Never pin `latest`.
 
-The chart comes from this repo at the Application's `targetRevision`. The value file comes from the app repo at `main`. Argo rolls out whatever is merged there.
+The public chart derives `PUBLIC_SCHEMA` only from `handlers.image.tag`.
+`query.image.tag` does not affect the schema name. Pin both backend images to
+the same commit so public-api migrations, handlers, and the schema name form
+one release.
 
-## The pins
+On every release that owns its database (`postgres.enabled: true`), set
+`publicViews.schema` to the same value as `handlers.image.tag`. The chart
+refuses to render without it. Shared-database staging has
+`postgres.enabled: false` and does not run the public-views job.
 
-These are separate. Moving one does not move the others.
+`INDEX_GENERATION` is `id` plus 12 digits, normally a UTC timestamp:
+`idYYYYMMDDHHMM`. It is both `ENVIO_PG_SCHEMA` and the topic-name infix. The
+event-lake and backend values for one stem must agree.
 
-| Pin | Where it is set | What it selects |
-| --- | --- | --- |
-| Origination image | event-lake `indexer.image.tag` | `ghcr.io/centrifuge/event-lake` |
-| Handlers and public-api image | backend `handlers.image.tag` and `query.image.tag`, the same `sha-` | `ghcr.io/centrifuge/chain-event-handlers` and `ghcr.io/centrifuge/public-api` |
-| Ingestion id | `INDEX_GENERATION` in both value files for that stem | The Envio schema, the topics origination writes, and the topics handlers read |
-| Chart version | Application `targetRevision` | The Helm templates. Not the running image. Ops, not this flow. |
+## Choose the release shape
 
-`INDEX_GENERATION` is `id` plus 12 digits (`id202610060845`). The files use `id` plus UTC `YYYYMMDDHHMM`. It is the Envio Postgres schema (`ENVIO_PG_SCHEMA`) and the topic infix `<network>.<id>.protocol-events.*`. A new id is a new set of topics. The previous id stays where it is.
+| Change | Origination tag | Backend tags | New generation |
+| --- | --- | --- | --- |
+| Origination code, generated Envio config unchanged | Change | Keep | Not required |
+| Origination config or schema changes | Change | Change if consumers changed | Required |
+| Handlers, public-api, or public-db | Keep | Change both | Not required |
+| New wire event or enrichment consumed by handlers | Change | Change both | Required when the generated Envio hash changes |
+| Values only | Only if the image changes | Only if the image changes | Only if the generated Envio hash changes |
 
-The public chart sets `PUBLIC_SCHEMA` from `handlers.image.tag` on both the handlers pod and the query pod. That tag is the Postgres schema public-api migrates and handlers write. The chart rejects a handlers tag that is not `sha-` plus hex. Pin query to the same `sha-` so the migrations and the consumer are one commit.
+Under the current release policy, even a public-api-only change moves both
+backend image tags. That creates a new `PUBLIC_SCHEMA` and causes a full
+handlers replay. Deploying public-api independently would require a separate
+compatibility policy for running a newer query image against an older handlers
+schema.
 
-## 1. Images exist before a value file names them
+## 1. Merge the application change and wait for images
 
-Event-lake `.github/workflows/docker-publish.yml` pushes `ghcr.io/centrifuge/event-lake:sha-<7 char>` on a push to `main`.
+Merging application code does not deploy it. It may publish images:
 
-Backend `.github/workflows/docker-publish.yml` pushes `ghcr.io/centrifuge/chain-event-handlers:sha-<7 char>` and `ghcr.io/centrifuge/public-api:sha-<7 char>` on a push to `main`. Both tags are the same seven characters from that commit.
+- Event-lake publishes when a `main` commit changes `apps/ingestion/**`,
+  `packages/**`, `scripts/**`, the workspace or lock files, or the image
+  workflow.
+- Backend publishes both images when a `main` commit changes
+  `apps/chain-event-handlers/**`, `apps/public-api/**`,
+  `packages/public-db/**`, the workspace or lock files, or the image workflow.
 
-Take the tag from the workflow. `latest` is also pushed and is not a deploy pin.
+Both workflows are path-filtered. An environment-only merge does not publish a
+new image. Use the workflow's manual dispatch only when an image for the commit
+is required and no path trigger ran.
 
-## 2. Rotate the ingestion id when the index cannot reopen
+Before using a tag:
 
-`indexSchemaHash` on an event-lake value file is the sha256 of generated `config.yaml` plus `schema.graphql` for that file. Envio will not reopen an existing schema against a different config. Event-lake `.github/workflows/index-schema-hash.yml` fails the pull request until the stored hash matches. The check's failure text is the rule: `INDEX_GENERATION` changes together with `indexSchemaHash`.
+1. Wait for the image workflow to finish.
+2. Confirm the exact `sha-<7 hex>` tag exists for the intended commit.
+3. Require the event-lake image boot check or both backend smoke checks to pass.
 
-The hash moves when the generated indexer config moves: `schema.graphql`, `config.template.yaml`, the generate scripts, registry pins, `SELECTED_NETWORKS`, contract patches, or protocol-events inputs that change the rendered config. A handlers or public-api image does not move it. An origination image that leaves the rendered config identical does not need a new id.
+These checks prove that the containers start. They do not prove an indexer
+caught up or handlers completed a replay.
 
-When it does move:
+## 2. Decide whether to rotate `INDEX_GENERATION`
 
-1. Pick a new id.
-2. Set it on every event-lake value file whose hash changed, then rewrite the hash from the event-lake repo:
+`indexSchemaHash` is the sha256 of the generated Envio `config.yaml` plus
+`schema.graphql` for one environment file. It is per file. Do not copy a hash
+between regions merely because they use the same generation.
+
+Rotate the generation when that file's generated hash changes. Common causes
+are:
+
+- `schema.graphql` or `config.template.yaml`
+- registry pins, chain selection, start blocks, or contract patches
+- generation scripts or protocol-events inputs that alter `config.yaml`
+
+A handlers or public-api change does not rotate the generation. An origination
+code change that renders the same config does not require rotation.
+
+The existing hash check verifies that the recorded hash matches generated
+config. It does not compare the branch to its base and therefore does not
+enforce that a changed hash also gets a new generation. Review that condition
+explicitly.
+
+When rotation is required:
+
+1. Build protocol-events as the event-lake
+   `.github/workflows/index-schema-hash.yml` job does. In the event-lake repo:
+
+   ```sh
+   pnpm update-registry
+   pnpm --filter @centrifuge/protocol-events run generate
+   pnpm --filter @centrifuge/protocol-events run build
+   ```
+
+2. Assign a new `idYYYYMMDDHHMM` to each affected event-lake values file.
+3. Rewrite and review the per-file hashes:
 
    ```sh
    node scripts/check-index-schema-hash.mjs --write
    ```
 
-   The script fetches each file's registry and generates config. It needs the same protocol-events build the workflow uses.
-3. Set the same id on the paired backend value file. Handlers read `<network>.<id>.protocol-events.*`. A mismatch replays the wrong topics.
-4. Hand the id to ops before merging. The topics and schema subjects for a new id are created on the cluster, outside these two repos. An indexer that starts before they exist creates them itself with the wrong replication.
+4. Set the same generation in the paired backend values file.
+5. Do not sync origination until the new generation and event-lake image tag
+   have been used to provision the topics and schema subjects. The producer
+   disables automatic topic creation, so missing topics cause publishing to
+   fail.
 
-A handlers-only or public-api-only change skips this section. The new `sha-` is already a new `PUBLIC_SCHEMA`, and handlers replay the existing topics into it.
+If the hash command cannot restore generated local files afterwards, run
+`pnpm update-registry && pnpm generate` with the root `.env`.
 
-## 3. Pin staging
+## 3. Prepare staging
 
-Edit the `-s` value files for the stem you are proving. Merge to `main` is what Argo rolls out.
+Use the staging stem for the network and region being tested. Do not promote a
+US staging result into EU production, or the reverse, without a deliberate
+decision that the untested region can move.
 
-Event-lake file:
+Update the effective values, including any live Application overrides.
 
-- `indexer.image.tag` = the event-lake `sha-`
-- `INDEX_GENERATION` and `indexSchemaHash` when step 2 ran
+Event-lake:
 
-Backend file, same stem:
+- `indexer.image.tag`
+- `INDEX_GENERATION`, when changed
+- `indexSchemaHash`, when changed
 
-- `INDEX_GENERATION` equal to the event-lake file
-- `query.image.tag` and `handlers.image.tag` = the same backend `sha-`
+Backend:
 
-US staging (`main-us-s`, `test-us-s`) has its own Postgres, so the indexer and handlers run beside production. It publishes to the same cluster as US production. The same `INDEX_GENERATION` is the same topics, and a second indexer publishes onto them. Give staging its own id when the proof must not write the topics production is publishing.
+- `query.image.tag`
+- `handlers.image.tag`, equal to the query tag
+- `INDEX_GENERATION`, equal to event-lake
+- `publicViews.schema`, equal to the handlers tag when
+  `postgres.enabled: true`
 
-The origination entrypoint holds `pg_try_advisory_lock` on `envio-origination:<id>` in the database it is connected to. That lock does not cross clusters or databases. Handlers hold `chain-event-handlers:<tag>` the same way. A second process on the same key in the same database exits.
+Do not copy complete YAML blocks between environments. In particular, do not
+copy `enabled`, `dbSecretName`, `postgres`, storage classes, ingress, or
+region-specific RPC settings.
 
-EU staging (`main-s`, `test-s`) mounts the production database and does not create one.
+### Staging database layouts
 
-- Leave `indexer.enabled: false` while the file would use an id the production indexer on that database already holds. A new id is a new Envio schema and a new lock key, so EU staging can run beside production only on an id production is not using.
-- Leave `handlers.enabled: false` while `handlers.image.tag` is the tag production handlers already hold. Enabling it takes the lock and, if it wins, truncates the production schema on startup. A new tag is a new schema in that database.
-- Query on EU staging reads `PUBLIC_SCHEMA` from the handlers tag in the file even when handlers are off. A tag handlers have not replayed serves an empty schema.
+US staging owns its Postgres cluster. It can run origination, handlers, and
+public-api without writing the production database.
 
-Handlers truncate the schema named by their tag and replay from the start of that id's topics, then follow the live consumer. `/ready` stays 503 until that finishes. `progressDeadlineSeconds` is 3600. They wait for public-api `/health` before replaying. Query stays at one replica and migrates `PUBLIC_SCHEMA` on boot.
+EU staging mounts the production Postgres cluster but uses separate schemas:
 
-If handlers started while the indexer was still filling the topic, restart them after indexer `/ready` is 200. Every start rebuilds from what is on the topic at that moment.
+- A staging origination process is safe only with a generation different from
+  the running production generation in that database.
+- A staging handlers process is safe only with a handlers tag different from
+  the running production tag.
+- `postgres.enabled` stays false.
+- `publicViews.schema` stays unset so staging cannot switch production's
+  public SQL views.
 
-Indexer `/health` is 200 from entrypoint, before catch-up. `/ready` is 200 only when every chain in `SELECTED_NETWORKS` has `envio_progress_ready` at 1.
+The advisory locks are database-local:
 
-## 4. Promote to production
+- Origination locks `envio-origination:<generation>`.
+- Handlers lock `chain-event-handlers:<PUBLIC_SCHEMA>`.
 
-Staging is ready when:
+A second process on the same key in the same database exits. It does not steal
+the lock. The lock does not protect two indexers connected to different
+databases but publishing to the same generation.
 
-- indexer `/ready` is 200
-- handlers `/ready` is 200 after that replay
-- public-api `/health` is 200
+For that reason, do not run two origination releases for the same network and
+generation in one cluster. If staging origination is enabled on the generation
+that production will use, stop staging and wait for its pod to terminate before
+starting production.
 
-Copy the proven pins onto the production stem for that network and region. `main-us-s` goes to `main-us`, `main-s` goes to `main`, and the same for `test`.
+## 4. Roll out and verify staging
 
-- Event-lake: `indexer.image.tag`, and `INDEX_GENERATION` plus `indexSchemaHash` if they changed
-- Backend: `query.image.tag` and `handlers.image.tag` together, and `INDEX_GENERATION` only when staging is on a new id that the event-lake production file names too
+Merge the staging values PRs in one coordinated window. Between the event-lake
+and backend merges, the files can temporarily disagree. Do not sync the
+affected Applications until both repositories hold the intended generation.
 
-Production indexer and handlers use `Recreate`. Handlers replay again into the schema named by the new tag. Previous ids and previous `sha-` schemas stay.
+If the live Application has inline values for the image tags or generation,
+update or remove those overrides before syncing. A file hidden by an inline
+override is not a release.
 
-## What does not move together
+For a combined origination and backend release, start origination first.
+Waiting for origination `/ready` before starting handlers avoids exposing a
+long, partially rebuilt projection. Handlers can follow a topic that is still
+growing, so do not restart them solely because origination was catching up.
+Every restart truncates their schema and replays again.
 
-- Origination bugfix, rendered config unchanged: event-lake `indexer.image.tag` only. Keep the id. Envio reopens the schema. Do not start a second indexer on that id in the same database.
-- Handlers or public-api only: both backend tags. Keep the id and the origination tag. The new tag is a new projection schema and a full replay of the current topics.
-- New event shape: a new id when the hash moved, then the origination pin, then both backend tags. Handlers replay only what that id's topics contain.
+Verify the effective workload, not only git:
 
-## Manual pins vs CI
+1. Argo reports the intended chart and values revision.
+2. The running images match the intended immutable tags.
+3. The workload environment contains the intended `INDEX_GENERATION`.
+4. Origination `/ready` is 200. `/health` is not sufficient because it becomes
+   200 before registry fetch, code generation, migrations, and catch-up finish.
+5. Handlers `/ready` is 200. Handlers do not bind `/health` until public-api is
+   healthy, and `/ready` remains 503 until replay finishes and the live
+   consumer runs.
+6. Public-api `/health` is 200 and its `schema` field equals the handlers tag.
+7. When `postgres.enabled: true`, the public-views hook job succeeded for
+   `publicViews.schema`.
+8. Run the change-specific GraphQL or projection checks.
 
-Promotion is a reviewed edit of git, and Argo deploys it because the value files track `main`. Automating that step means a workflow writing those files. The question is which writes are safe to make from CI, and which ones are an incident if the workflow is wrong.
+Public-api becomes healthy after migrations, before handlers finish replay.
+During a production tag change, GraphQL can therefore serve an empty or
+partially rebuilt tagged schema until handlers are ready. Handlers readiness,
+not public-api health alone, is the completion signal.
 
-Five views, on this stack only.
+## 5. Promote to production
 
-**SRE.** Every handlers start truncates `PUBLIC_SCHEMA` and replays. Query reads that same tag, so GraphQL moves to the new schema as soon as the public release syncs, and stays empty until `/ready`. A prod pin is a planned outage of that stem, measured in the replay, with `progressDeadlineSeconds` at 3600. EU staging is the production database. `handlers.enabled: true` on the production tag takes `chain-event-handlers:<tag>` and truncates production. `indexer.enabled: true` on the production id takes `envio-origination:<id>` and the production indexer loses the lock. Those two flags are not image pins. A workflow that "updates staging" by copying a US file onto an EU file copies them. A retry of that workflow truncates again.
+Create production PRs that copy only the pins proven on the matching staging
+stem:
 
-**Kubernetes.** The two Applications sync separately. Nothing in the cluster orders origination before handlers. Indexer `/ready` is not on a public ingress. A GitHub-hosted runner cannot see it. `/health` is 200 from process start, so a workflow that polls health will promote a backfill. `/ready` stays 1 once Envio has reached the head and does not clear, so it proves catch-up only on the pod that just started.
+- Event-lake: `indexer.image.tag`, `INDEX_GENERATION`, and the production
+  file's own `indexSchemaHash`.
+- Backend: `query.image.tag`, `handlers.image.tag`, `INDEX_GENERATION`, and
+  `publicViews.schema` when production owns the database.
 
-**Release.** The pins sit in two repositories. A staging proof on US mainnet is four files if both images move (`main-us-s` in each repo). Forgetting the backend id replays the previous topics. Forgetting to keep `query.image.tag` equal to `handlers.image.tag` is allowed by the chart: only the handlers tag is `PUBLIC_SCHEMA`. Promoting `main-us-s` into `main.yaml` moves the EU production stem that never ran the image. The useful automation is a pull request that copies pin fields for one stem. Merging it stays a person, because merge is the deploy.
+Do not copy staging's `indexSchemaHash` into another file. Generate and review
+the production file's hash. Do not copy staging enablement or database
+settings.
 
-**IaC.** A new id needs topics that neither repo creates. Nothing in the two pull requests shows in review that they exist. The chart checks that fail the render (`INDEX_GENERATION` shape, handlers tag shape) run at sync, which is after merge.
+Before syncing production:
 
-**Helm.** Render-time refusal is the right layer for shapes: `INDEX_GENERATION` must match `id` plus 12 digits, handlers tag must match `sha-` plus hex. Event-lake CI already fails a value file whose `indexSchemaHash` does not match generated config. It does not fail a hash update that leaves the old id in place, which is the case Envio refuses to reopen. Duplicating those rules in a GitHub Action drifts from the templates. New checks belong in the chart or in the existing hash job, not in a third copy.
+1. Confirm the images and any required generation infrastructure still exist.
+2. Confirm the production event-lake and backend files agree on the generation.
+3. Confirm both backend image tags and `publicViews.schema` use the same
+   backend tag.
+4. Stop any staging origination process that publishes to the production
+   generation.
+5. On a shared database, stop staging handlers if they use the tag production
+   is about to acquire, and wait for the advisory lock to be released.
+6. Record the current production pins for rollback.
 
-### What manual gets wrong
+Sync origination first when it changed. Wait for `/ready`. Then sync the public
+release. Production indexer and handlers use `Recreate`; handlers truncate the
+selected tagged schema and replay from the beginning.
 
-- The id differs between the event-lake file and the backend file. Handlers replay the wrong topics.
-- `indexSchemaHash` is rewritten and `INDEX_GENERATION` is not. CI is green. Envio will not open the old schema.
-- A new id is merged before its topics exist. The indexer creates them with the wrong replication.
-- US staging keeps production's id, so the proof indexer publishes on production topics.
-- An EU `-s` file is saved with `enabled: true` on the production id or the production handlers tag.
-- Query and handlers tags diverge.
-- Production is pinned from memory, without indexer `/ready`, handlers `/ready`, and public-api `/health` on that stem.
-- Handlers are left up from before the indexer caught up, so the replay missed the tail.
+Repeat the staging verification checklist against production. Previous
+generations and tagged schemas remain in place; cleanup is not part of a
+release.
 
-### What CI automation gets wrong
+## Rollback
 
-- A job that commits to `main` deploys. There is no second step.
-- A job that always rotates `INDEX_GENERATION` forces a full reindex and leaves the old topics behind. A job that never rotates double-publishes on the current topics, or crashloops Envio when the hash moved.
-- A job that sets image tags cannot see `/ready` without a path into the cluster. Giving it that path means cluster credentials on every promotion.
-- Cross-repo pulls are two merges. The check on the first is stale when the second lands. Between them the stems disagree.
-- A job that rotates the id cannot create its topics from either repo. The merge lands before they exist.
-- A generic "update every `-s` file" does not know that EU staging shares the production database. Copying `enabled` is the production incident above. Retries repeat it.
-- Auto-promoting every production stem because one region's staging went ready ships an image the other region has not run.
+Rollback is another values change and another replay. It is not an instant
+traffic switch.
 
-### What to automate, and what to leave
+- Origination without a generation change: restore the previous image tag.
+- Origination with a generation change: restore the previous image tag,
+  generation, and that environment's matching hash.
+- Backend: restore both previous image tags and `publicViews.schema`. Restore
+  the previous generation too if production changed it.
 
-Automate refusal, on the pull request, in the repo that holds the field.
+Stop the current origination writer before restarting the previous generation.
+On backend rollback, handlers truncate the selected schema and replay, so
+public-api can again serve partial data until handlers `/ready` is 200. Verify
+the same probes and change-specific queries after rollback.
 
-- Keep the hash job and the chart's tag and id checks.
-- Fail an event-lake value change that updates `indexSchemaHash` without changing `INDEX_GENERATION` relative to the base branch.
-- Fail a backend value file whose `query.image.tag` and `handlers.image.tag` differ.
-- Fail an EU `-s` file when `indexer.enabled` is true and `INDEX_GENERATION` equals the paired production file, or when `handlers.enabled` is true and `handlers.image.tag` equals the paired production file.
+## Manual promotion and CI automation
 
-Leave the write to a person while EU staging mounts the production database and while a new id's topics are created outside the two repos. After that, a workflow may open the production pull request by copying pin fields for the one stem that was proved. It copies `indexer.image.tag`, `INDEX_GENERATION`, `indexSchemaHash`, `query.image.tag`, and `handlers.image.tag`. It does not copy `enabled`, `dbSecretName`, or `postgres`. It does not merge. The pull request states the three probe results. CI has not observed them.
+Manual promotion currently provides a useful approval point, but the release
+state is spread across two repositories and live Argo values. The main manual
+failure modes are:
+
+- image tags, generation, hash, and public-views schema do not move together
+- a checked-in value is hidden by a live inline override
+- EU staging copies production lock keys or database settings
+- production moves before the matching staging workload is ready
+- a staging origination writer remains active on the production generation
+- a production backend tag exposes a partial replay without that being
+  understood as part of the rollout
+
+Direct CI writes have different risks:
+
+- committing to a values branch can become a deployment as soon as Argo syncs
+- cross-repository changes are not atomic
+- a hosted runner cannot see internal `/ready` endpoints without cluster
+  credentials
+- a generic copy step can move environment-specific settings
+- retries can restart handlers and trigger another truncate and replay
+
+The safe automation boundary today is validation plus pull-request creation:
+
+- fail when `indexSchemaHash` changes without `INDEX_GENERATION`
+- fail when paired event-lake and backend generations differ
+- fail when backend image tags differ
+- fail when `postgres.enabled: true` and `publicViews.schema` differs from the
+  handlers tag
+- fail unsafe EU staging lock-key reuse
+- render the chart with the effective values before merge
+- let a bot open a production PR that copies only approved pin fields for one
+  stem
+
+Do not let that automation merge or sync production. Full promotion automation
+needs one authoritative release manifest, no unmanaged inline overrides,
+cluster-visible readiness gates, generation provisioning, and a per-environment
+lock that prevents overlapping promotions.
+
+## Chart changes
+
+Application images and chart versions are separate pins. If an application
+change requires a new chart template or value:
+
+1. Release the chart first.
+2. Update the staging Application `targetRevision`.
+3. Prove the chart and image together in staging.
+4. Update the matching production Application only after staging passes.
+
+Do not mix an unrelated chart-version change into an image promotion.
