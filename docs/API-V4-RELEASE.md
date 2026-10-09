@@ -65,10 +65,11 @@ The public chart derives `PUBLIC_SCHEMA` only from `handlers.image.tag`.
 the same commit so public-api migrations, handlers, and the schema name form
 one release.
 
-On every release that owns its database (`postgres.enabled: true`), set
-`publicViews.schema` to the same value as `handlers.image.tag`. The chart
-refuses to render without it. Shared-database staging has
-`postgres.enabled: false` and does not run the public-views job.
+On production releases, which own their databases (`postgres.enabled: true`),
+set `publicViews.schema` to the same value as `handlers.image.tag`. The chart
+refuses to render without it. All staging releases share their region's
+production database, keep `postgres.enabled: false`, and do not run the
+public-views job.
 
 `INDEX_GENERATION` is `id` plus 12 digits, normally a UTC timestamp:
 `idYYYYMMDDHHMM`. It is both `ENVIO_PG_SCHEMA` and the topic-name infix. The
@@ -165,8 +166,8 @@ If the hash command cannot restore generated local files afterwards, run
 ## 3. Prepare staging
 
 Use the staging stem for the network and region being tested. Do not promote a
-US staging result into EU production, or the reverse, without a deliberate
-decision that the untested region can move.
+staging result into a different region without a deliberate decision that the
+untested region can move.
 
 Update the effective values, including any live Application overrides.
 
@@ -181,19 +182,16 @@ Backend:
 - `query.image.tag`
 - `handlers.image.tag`, equal to the query tag
 - `INDEX_GENERATION`, equal to event-lake
-- `publicViews.schema`, equal to the handlers tag when
-  `postgres.enabled: true`
+- `publicViews.schema` unset because staging does not own the database
 
 Do not copy complete YAML blocks between environments. In particular, do not
 copy `enabled`, `dbSecretName`, `postgres`, storage classes, ingress, or
 region-specific RPC settings.
 
-### Staging database layouts
+### Staging database layout
 
-US staging owns its Postgres cluster. It can run origination, handlers, and
-public-api without writing the production database.
-
-EU staging mounts the production Postgres cluster but uses separate schemas:
+Every staging release mounts its region's production Postgres cluster and uses
+separate schemas:
 
 - A staging origination process is safe only with a generation different from
   the running production generation in that database.
@@ -209,13 +207,10 @@ The advisory locks are database-local:
 - Handlers lock `chain-event-handlers:<PUBLIC_SCHEMA>`.
 
 A second process on the same key in the same database exits. It does not steal
-the lock. The lock does not protect two indexers connected to different
-databases but publishing to the same generation.
-
-For that reason, do not run two origination releases for the same network and
-generation in one cluster. If staging origination is enabled on the generation
-that production will use, stop staging and wait for its pod to terminate before
-starting production.
+the lock. Staging must therefore use a generation and handlers tag different
+from the running production values. Before production acquires the staging
+generation and tag, stop the staging processes and wait for their pods to
+terminate.
 
 ## 4. Roll out and verify staging
 
@@ -311,7 +306,7 @@ failure modes are:
 
 - image tags, generation, hash, and public-views schema do not move together
 - a checked-in value is hidden by a live inline override
-- EU staging copies production lock keys or database settings
+- staging reuses production lock keys or changes shared database settings
 - production moves before the matching staging workload is ready
 - a staging origination writer remains active on the production generation
 - a production backend tag exposes a partial replay without that being
@@ -333,7 +328,7 @@ The safe automation boundary today is validation plus pull-request creation:
 - fail when backend image tags differ
 - fail when `postgres.enabled: true` and `publicViews.schema` differs from the
   handlers tag
-- fail unsafe EU staging lock-key reuse
+- fail unsafe staging lock-key reuse
 - render the chart with the effective values before merge
 - let a bot open a production PR that copies only approved pin fields for one
   stem
