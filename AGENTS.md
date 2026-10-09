@@ -11,6 +11,7 @@ charts/<dir>/            one chart per dir (dir name != chart name)
 examples/                Argo CD Application manifests (reviewed by ops, not applied by CI)
 examples/secrets/        commented-out Secret templates (never real values)
 .github/workflows/release.yml
+docs/API-V4-RELEASE.md   developer release: origination, handlers, public-api
 ```
 
 Example manifests are named `argocd-<application-name>.yaml`, with a `_us` suffix for the us cluster (`destination.name: beta`; eu uses `destination.server`). The `argocd-cfg-api-erpc*.yaml` pair is a snapshot of the live eRPC Applications. Neither sets `helm.releaseName`, so eRPC resource names follow the Application name, which is why those names must stay `cfg-api-erpc` (eu) and `cfg-api-erpc-us` (us): api-v3 reaches them at those hostnames in production.
@@ -78,6 +79,8 @@ Runs Drizzle migrations at boot, so keep `replicaCount: 1` and a generous `start
 **redpanda**: bootstrap Jobs are `post-install,post-upgrade` hooks, weight `0` (topics, rpk) then `1` (schemas, `cfg-cli events schemas update -n -g`). `bootstrap.topics.generations` must list at least one `INDEX_GENERATION`. The schema image tag must be an event-lake `sha-` tag whose cfg-cli accepts that flag. An empty generations list or a `latest` tag fails the render. Existing unscoped topics are left in the cluster. Both poll for readiness first because Helm returns before the StatefulSet is Ready, and both must be idempotent. `centrifuge-redpanda.name` is `redpanda-bootstrap`, never `redpanda`: the upstream Kafka Service selects on `app.kubernetes.io/name: redpanda` + instance with no component label, so a Job pod named `redpanda` would join the Kafka, Schema Registry and Admin endpoints while it runs.
 
 ## Release engineering
+
+Environment promotion for the v4 stack (origination, handlers, and public-api image tags, `INDEX_GENERATION`, staging, then production) is [docs/API-V4-RELEASE.md](docs/API-V4-RELEASE.md). It is written for the developer shipping the change. Redpanda topic bootstrap for a new generation is ops work and stays in this file. The workflow below only publishes chart versions.
 
 `.github/workflows/release.yml` on push to `main` (chart or release-script changes) or `workflow_dispatch`: bumps patch versions when chart templates change, fetches subchart `.tgz` into the runner workspace (not git), `helm package --dependency-update=false`, then `cr upload` / `cr index`. Infra-only changes do not bump; already-published versions are skipped. After a failed first publish, run **Actions → Release Charts → Run workflow** with `bump_version` so a new patch is actually uploaded. A published version is immutable.
 

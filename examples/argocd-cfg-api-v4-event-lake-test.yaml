@@ -17,7 +17,7 @@ spec:
   project: cfg-api
   sources:
     - repoURL: https://embrio-tech.github.io/centrifuge-helm
-      targetRevision: "0.1.0"
+      targetRevision: "0.1.6"
       chart: centrifuge-api-v4-event-lake
       helm:
         releaseName: cfg-api-v4-event-lake-test

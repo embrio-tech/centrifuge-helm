@@ -23,7 +23,7 @@ spec:
           global:
             dbSecretName: cfg-api-v4-event-lake-test-postgres-app
             env:
-              INDEX_GENERATION: "id202610011206"
+              INDEX_GENERATION: "id202610060845"
           indexer:
             image:
               tag: sha-6757123

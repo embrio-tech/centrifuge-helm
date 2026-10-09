@@ -23,9 +23,7 @@ spec:
       values: |
         bootstrap:
           topics:
-            generations:
-              - id202610011054
-              - id202610011206
+            generations: []
           schemas:
             enabled: true
             image:

@@ -24,7 +24,7 @@ spec:
           global:
             dbSecretName: cfg-api-v4-public-test-postgres-app
             env:
-              INDEX_GENERATION: "id202610011206"
+              INDEX_GENERATION: "id202610060845"
           query:
             image:
               tag: sha-36b6fa4

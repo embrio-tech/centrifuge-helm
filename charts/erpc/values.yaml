@@ -64,7 +64,7 @@ erpc:
           directiveDefaults:
             enforceHighestBlock: true
             enforceGetLogsBlockRange: true
-            validateLogsBloomMatch: 
+            validateLogsBloomMatch: true
             validateTransactionIndex: true
             enforceLogIndexStrictIncrements: true
         upstreamDefaults:
@@ -116,6 +116,67 @@ erpc:
             evm:
               chainId: 5042
               fallbackFinalityDepth: 10
+          - architecture: evm
+            evm:
+              chainId: 43114
+              fallbackFinalityDepth: 10
+            selectionPolicy:
+              evalInterval: 15s
+              evalPerMethod: false
+              resampleExcluded: false
+              evalFunction: |
+                (upstreams, method) => {
+                  const maxErrorRate = 0.7;
+                  const maxBlockHeadLag = 16;
+                  const vendorOrder = ["quicknode", "alchemy", "drpc"];
+
+                  const isAvax = (u) =>
+                    typeof u.id === "string" && u.id.indexOf("evm:43114") !== -1;
+                  const vendorOf = (id) => {
+                    if (id.indexOf("quicknode-") === 0) return "quicknode";
+                    if (id.indexOf("alchemy-") === 0) return "alchemy";
+                    if (id.indexOf("drpc-") === 0) return "drpc";
+                    return null;
+                  };
+                  const isHealthy = (u) =>
+                    u.metrics.errorRate < maxErrorRate
+                    && u.metrics.blockHeadLag < maxBlockHeadLag;
+
+                  const avax = upstreams.filter(isAvax);
+                  const byVendor = {};
+                  for (const u of avax) {
+                    const v = vendorOf(u.id);
+                    if (!v) continue;
+                    if (!byVendor[v]) byVendor[v] = [];
+                    byVendor[v].push(u);
+                  }
+                  const present = vendorOrder.filter(
+                    (v) => byVendor[v] && byVendor[v].length > 0
+                  );
+                  if (present.length === 0) {
+                    return avax;
+                  }
+
+                  const hourSlot = Math.floor(Date.now() / 3600000);
+                  const preferredIdx = hourSlot % present.length;
+                  let activePrimary = null;
+                  for (let i = 0; i < present.length; i++) {
+                    const v = present[(preferredIdx + i) % present.length];
+                    const healthy = byVendor[v].find(isHealthy);
+                    if (healthy) {
+                      activePrimary = healthy;
+                      break;
+                    }
+                  }
+                  if (!activePrimary) {
+                    activePrimary = byVendor[present[preferredIdx]][0];
+                  }
+
+                  // Single primary for every method: 0.0.64 evalPerMethod:false
+                  // always evaluates method as "*". A multi-vendor pool would
+                  // mix eth_getBlockByNumber and eth_getLogs across providers.
+                  return activePrimary ? [activePrimary] : [];
+                }
         # Hyperliquid (999): /evm = last 1024 blocks only (full); /nanoreth = at most latest-1024 (archive). Non-overlapping window so new work never hits nanoreth and deep history never hits /evm.
         upstreams:
           - endpoint: ${QUICKNODE_HYPE_RPC}/evm
