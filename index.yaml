@@ -1998,6 +1998,23 @@ entries:
   centrifuge-api-v4-event-lake:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2026-10-12T12:49:23.238135661Z"
+    dependencies:
+    - alias: postgres
+      condition: postgres.enabled
+      name: cluster
+      repository: https://cloudnative-pg.github.io/charts
+      version: 0.3.1
+    description: Centrifuge event-lake ingestion (Envio indexer -> Redpanda protocol
+      events)
+    digest: b922c3674f300dcbd3435dc07725168e58e6d4af17f7cc1c0445a72bd0c4746d
+    name: centrifuge-api-v4-event-lake
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-event-lake-0.1.7/centrifuge-api-v4-event-lake-0.1.7.tgz
+    version: 0.1.7
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2026-10-01T11:16:38.998036088Z"
     dependencies:
     - alias: postgres
@@ -3305,6 +3322,21 @@ entries:
   redpanda:
   - apiVersion: v2
     appVersion: v26.1.14
+    created: "2026-10-12T12:49:35.375909019Z"
+    dependencies:
+    - name: redpanda
+      repository: https://charts.redpanda.com
+      version: 26.1.10
+    description: Redpanda cluster (Kafka API + Schema Registry + Console) for Centrifuge
+      protocol events
+    digest: 3ef7420361d4be50ea7954d71d9f01367d212e6e039837652b36725b6239b028
+    name: redpanda
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/redpanda-0.1.10/redpanda-0.1.10.tgz
+    version: 0.1.10
+  - apiVersion: v2
+    appVersion: v26.1.14
     created: "2026-10-01T11:16:55.152563303Z"
     dependencies:
     - name: redpanda
@@ -3423,4 +3455,4 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/redpanda-0.1.2/redpanda-0.1.2.tgz
     version: 0.1.2
-generated: "2026-10-09T12:03:45.749760261Z"
+generated: "2026-10-12T12:49:36.919715107Z"
