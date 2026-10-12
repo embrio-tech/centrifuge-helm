@@ -155,10 +155,11 @@ When rotation is required:
    ```
 
 4. Set the same generation in the paired backend values file.
-5. Do not sync origination until the new generation and event-lake image tag
-   have been used to provision the topics and schema subjects. The producer
-   disables automatic topic creation, so missing topics cause publishing to
-   fail.
+5. Sync the event-lake release that carries the new generation. Its
+   pre-upgrade hook creates that release's topics and schema subjects from
+   `CFG_NETWORK` and `INDEX_GENERATION` before the indexer rolls. The Redpanda
+   release does not list generations. The producer disables automatic topic
+   creation, so the hook has to succeed before publishing starts.
 
 If the hash command cannot restore generated local files afterwards, run
 `pnpm update-registry && pnpm generate` with the root `.env`.
@@ -264,7 +265,7 @@ settings.
 
 Before syncing production:
 
-1. Confirm the images and any required generation infrastructure still exist.
+1. Confirm the images still exist. The event-lake hook creates the generation's topics on sync.
 2. Confirm the production event-lake and backend files agree on the generation.
 3. Confirm both backend image tags and `publicViews.schema` use the same
    backend tag.
@@ -335,7 +336,7 @@ The safe automation boundary today is validation plus pull-request creation:
 
 Do not let that automation merge or sync production. Full promotion automation
 needs one authoritative release manifest, no unmanaged inline overrides,
-cluster-visible readiness gates, generation provisioning, and a per-environment
+cluster-visible readiness gates, and a per-environment
 lock that prevents overlapping promotions.
 
 ## Chart changes

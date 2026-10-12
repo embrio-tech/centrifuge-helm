@@ -1,10 +1,10 @@
 {{/*
-Name for our own resources (the bootstrap Jobs).
+Name for any pod this chart adds beside the upstream subchart.
 
 Deliberately NOT `.Chart.Name`: the upstream Redpanda Service selects on
 `app.kubernetes.io/name: redpanda` plus the release instance only, with no
-component label. Reusing `redpanda` here would put a running bootstrap Job pod
-behind the Kafka / Schema Registry / Admin Services, where it answers nothing.
+component label. A pod named `redpanda` joins the Kafka, Schema Registry and
+Admin Services while it runs.
 */}}
 {{- define "centrifuge-redpanda.name" -}}
 {{- default (printf "%s-bootstrap" .Chart.Name) .Values.nameOverride | trunc 63 | trimSuffix "-" }}
@@ -53,27 +53,4 @@ Selector labels
 {{- define "centrifuge-redpanda.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "centrifuge-redpanda.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
-
-{{/*
-In-cluster Kafka brokers used by bootstrap Jobs.
-*/}}
-{{- define "centrifuge-redpanda.brokers" -}}
-{{- .Values.bootstrap.brokers | default "cfg-api-redpanda:9093" -}}
-{{- end }}
-
-{{/*
-In-cluster Schema Registry URL used by bootstrap Jobs.
-*/}}
-{{- define "centrifuge-redpanda.schemaRegistryUrl" -}}
-{{- .Values.bootstrap.schemaRegistryUrl | default "http://cfg-api-redpanda:8081" -}}
-{{- end }}
-
-{{/*
-rpk image for topic bootstrap. Tag defaults to this chart's appVersion, which
-tracks the vendored Redpanda subchart so the rpk client matches the brokers.
-*/}}
-{{- define "centrifuge-redpanda.topicsImage" -}}
-{{- $tag := .Values.bootstrap.topics.image.tag | default .Chart.AppVersion -}}
-{{- printf "%s:%s" .Values.bootstrap.topics.image.repository $tag -}}
 {{- end }}

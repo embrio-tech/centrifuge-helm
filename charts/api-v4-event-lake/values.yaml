@@ -46,6 +46,21 @@ indexer:
     repository: ghcr.io/centrifuge/event-lake
     pullPolicy: IfNotPresent
     tag: "latest"
+  # Creates this release's topics and schema subjects before the indexer rolls.
+  # The id and network come from global.env. rpk is pinned to the cluster's
+  # Redpanda version; cfg-cli reconcile-topics would create RF 1 topics.
+  provision:
+    rpk:
+      repository: docker.redpanda.com/redpandadata/redpanda
+      tag: "v26.1.14"
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
   imagePullSecrets: []
   nameOverride: ""
   fullnameOverride: ""

@@ -1,0 +1,112 @@
+{{- if .Values.indexer.enabled }}
+{{- $generation := include "centrifuge-api-v4-event-lake.indexGeneration" . }}
+{{- $network := index .Values.global.env "CFG_NETWORK" | default "" | toString }}
+{{- if not (or (eq $network "mainnet") (eq $network "testnet")) }}
+{{- fail "CFG_NETWORK must be mainnet or testnet" }}
+{{- end }}
+{{- $brokers := index .Values.global.env "REDPANDA_BROKERS" | default "cfg-api-redpanda:9093" | toString }}
+{{- $registry := index .Values.global.env "REDPANDA_SCHEMA_REGISTRY_URL" | default "http://cfg-api-redpanda:8081" | toString }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "centrifuge-api-v4-event-lake.indexer.fullname" . }}-provision
+  labels:
+    {{- include "centrifuge-api-v4-event-lake.indexer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: provision
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "0"
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 420
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: provision
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: provision
+    spec:
+      restartPolicy: Never
+      {{- with (.Values.indexer.imagePullSecrets | default .Values.imagePullSecrets) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: topics
+          image: "{{ .Values.indexer.provision.rpk.repository }}:{{ .Values.indexer.provision.rpk.tag }}"
+          imagePullPolicy: {{ .Values.indexer.provision.rpk.pullPolicy }}
+          {{- with .Values.indexer.provision.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: RPK_BROKERS
+              value: {{ $brokers | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              TIMEOUT=300
+              INTERVAL=5
+              deadline=$(( $(date +%s) + TIMEOUT ))
+              echo "waiting for Kafka metadata at ${RPK_BROKERS}"
+              until rpk cluster info >"/tmp/rpk.out" 2>"/tmp/rpk.err"; do
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "Redpanda did not answer Kafka metadata within ${TIMEOUT}s"
+                  cat "/tmp/rpk.err" || true
+                  exit 1
+                fi
+                sleep "$INTERVAL"
+              done
+              GEN={{ $generation | quote }}
+              NET={{ $network | quote }}
+              for T in "${NET}.${GEN}.protocol-events.speculative" "${NET}.${GEN}.protocol-events.confirmed" "${NET}.${GEN}.protocol-events-dlq"; do
+                if rpk topic describe "$T" >/dev/null 2>&1; then
+                  echo "exists ${T}"
+                  continue
+                fi
+                EXTRA=""
+                case "$T" in *speculative) EXTRA="-c cleanup.policy=compact";; esac
+                # shellcheck disable=SC2086
+                rpk topic create "$T" -p 1 -r 3 $EXTRA
+                echo "created ${T}"
+              done
+      containers:
+        - name: schemas
+          image: "{{ .Values.indexer.image.repository }}:{{ .Values.indexer.image.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.indexer.image.pullPolicy }}
+          {{- with .Values.indexer.provision.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: REDPANDA_BROKERS
+              value: {{ $brokers | quote }}
+            - name: REDPANDA_SCHEMA_REGISTRY_URL
+              value: {{ $registry | quote }}
+            - name: REDPANDA_CLIENT_ID
+              value: "cfg-cli"
+            - name: REDPANDA_READY_TIMEOUT_MS
+              value: "300000"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              SR="$REDPANDA_SCHEMA_REGISTRY_URL"
+              TIMEOUT=300
+              INTERVAL=5
+              deadline=$(( $(date +%s) + TIMEOUT ))
+              echo "waiting for Schema Registry at ${SR}"
+              until node -e "fetch(process.env.REDPANDA_SCHEMA_REGISTRY_URL + '/subjects').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; do
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "Schema Registry did not become ready within ${TIMEOUT}s"
+                  exit 1
+                fi
+                sleep "$INTERVAL"
+              done
+              echo "registering {{ $network }} {{ $generation }} protocol-event schemas"
+              node packages/cfg-cli/dist/index.js events schemas update -n {{ $network | quote }} -g {{ $generation | quote }}
+{{- end }}
