@@ -11,7 +11,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: cfg-api-erpc-us
-  namespace: argocd
+  namespace: argo
 spec:
   project: cfg-api
   source:
