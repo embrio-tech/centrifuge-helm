@@ -144,7 +144,8 @@ redpanda:
   monitoring:
     enabled: true
     scrapeInterval: 30s
-  # -- Topics are created by the bootstrap Job. Producers have auto-create off.
+  # -- Topics and schema subjects are created by each event-lake release for its
+  # own INDEX_GENERATION. Auto-create stays off.
   config:
     cluster:
       auto_create_topics_enabled: false
@@ -161,54 +162,3 @@ redpanda:
       enabled: false             # enable per environment; traefik + tls-acme annotations
     monitoring:
       enabled: true
-
-# -- Bootstrap Jobs run as Helm post-install/post-upgrade hooks. They wait for
-# the cluster to be healthy before mutating topics/schemas (StatefulSet Ready
-# lags Helm apply).
-bootstrap:
-  brokers: "cfg-api-redpanda:9093"
-  schemaRegistryUrl: "http://cfg-api-redpanda:8081"
-  wait:
-    timeoutSeconds: 300
-    intervalSeconds: 5
-  # -- Topic bootstrap. Creates the protocol-events topics for each network with
-  # 1 partition and RF 3 (handlers assume single-partition topics; do not raise).
-  # `cfg-cli reconcile-topics` hardcodes RF 1, so topics are created with rpk here.
-  topics:
-    enabled: true
-    image:
-      repository: docker.redpanda.com/redpandadata/redpanda
-      tag: ""                    # default: this chart's appVersion (matches the subchart)
-    pullPolicy: IfNotPresent
-    partitions: 1
-    replicas: 3
-    networks:
-      - mainnet
-      - testnet
-    # Indexer generation ids. Empty fails the render. Existing unscoped topics
-    # are left in the cluster. This job does not delete topics.
-    generations: []
-    resources:
-      requests:
-        cpu: 200m
-        memory: 256Mi
-      limits:
-        cpu: 200m
-        memory: 256Mi
-  # -- Schema bootstrap. Registers protobuf subjects `<topic>-value` for every
-  # network and generation via `cfg-cli events schemas update -n -g`.
-  # image.tag must be an event-lake sha whose cfg-cli accepts INDEX_GENERATION.
-  # The publisher only GETs subjects. This job creates them. It does not create topics.
-  schemas:
-    enabled: true
-    image:
-      repository: ghcr.io/centrifuge/event-lake
-      tag: "latest"
-    pullPolicy: IfNotPresent
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi

@@ -1,9 +1,9 @@
 # Argo CD Application: Redpanda cluster for the event-lake / public-api stack (us cluster beta).
 # Namespace: cfg-api. Shared by mainnet and testnet (topics are network-prefixed).
-# Sync wave 0: must finish before event-lake and public-api (wave 1) so topics exist.
+# Sync wave 0: Kafka must be up before event-lake (wave 1) creates its topics.
 # Kafka/Schema Registry stay in-cluster (external NodePort is off in chart defaults).
 # Console ingress has no auth; treat the host as operator-only.
-# Schema bootstrap registers protobuf subjects via cfg-cli in the event-lake image.
+# This release does not take indexer generation ids. Event-lake creates topics.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -21,12 +21,6 @@ spec:
     helm:
       releaseName: cfg-api-redpanda
       values: |
-        bootstrap:
-          schemas:
-            enabled: true
-            image:
-              repository: ghcr.io/centrifuge/event-lake
-              tag: latest
         redpanda:
           storage:
             persistentVolume:
