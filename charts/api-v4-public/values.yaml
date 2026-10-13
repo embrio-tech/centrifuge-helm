@@ -137,9 +137,10 @@ postgres:
     affinity:
       topologyKey: topology.cinder.csi.openstack.org/zone
     roles:
-      # Role defaults live here. passwordSecret is release-specific and is
-      # attached by scripts/create-sql-ro-credentials.sh (Secret name:
-      # <cluster>-public-ro). Do not redeclare this whole block in env files.
+      # Defaults for releases that do not expose sql-ro. main.yaml and test.yaml
+      # redeclare this list and set passwordSecret to <cluster>-public-ro.
+      # Helm replaces the list, so those copies have to stay in step with this
+      # one. A live patch of passwordSecret is wiped on the next sync.
       - name: public_ro
         ensure: present
         login: true

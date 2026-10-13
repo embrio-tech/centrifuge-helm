@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Create public_ro password Secrets for every sql-ro Service and apply them in Postgres.
-# CNPG 1.25 does not generate these; passwordSecret must point at an existing basic-auth Secret.
+# CNPG 1.25 does not generate these. passwordSecret on the Cluster (set in the
+# backend env file for main and test) must point at this basic-auth Secret.
+# This script still patches it if a release is missing the link.
 #
 # Usage:
 #   ./scripts/create-sql-ro-credentials.sh           # create missing only
