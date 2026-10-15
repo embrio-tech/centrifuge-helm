@@ -1,0 +1,12 @@
+# Minimal pins so helm template/kubeconform can render (chart defaults use latest).
+global:
+  env:
+    INDEX_GENERATION: id202610130000
+handlers:
+  image:
+    tag: sha-abcdef0
+query:
+  image:
+    tag: sha-abcdef0
+projection:
+  schema: pj_20261013_01
