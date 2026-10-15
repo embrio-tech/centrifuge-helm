@@ -1,0 +1,8 @@
+kind: event-lake
+environment: test-eu
+postgres:
+  fullnameOverride: cfg-api-v4-database-event-lake-test-eu-postgres
+  cluster:
+    initdb: { database: envio }
+    storage: { size: 64Gi, storageClass: ceph-perf3 }
+    walStorage: { enabled: true, size: 32Gi, storageClass: ceph-perf3 }

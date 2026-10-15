@@ -1,0 +1,57 @@
+name: Lint Charts
+
+# Runs before merge. Release Charts publishes on push to main and only lints with
+# chart defaults, which pass even when a template cannot render real values.
+
+on:
+  pull_request:
+    paths:
+      - charts/**
+      - scripts/lint-chart.sh
+      - scripts/fetch-chart-dependencies.sh
+      - .github/workflows/lint.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    env:
+      KUBECONFORM_VERSION: v0.8.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+
+      - name: Install kubeconform
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin kubeconform
+
+      - name: Changed charts
+        id: changed
+        run: |
+          set -euo pipefail
+          charts="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- charts/ \
+            | cut -d/ -f2 | sort -u | while read -r c; do [ -f "charts/$c/Chart.yaml" ] && echo "$c"; done | xargs)"
+          echo "charts=${charts}" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch dependencies
+        if: steps.changed.outputs.charts != ''
+        run: ./scripts/fetch-chart-dependencies.sh
+
+      - name: Lint
+        if: steps.changed.outputs.charts != ''
+        run: |
+          set -euo pipefail
+          for chart in ${{ steps.changed.outputs.charts }}; do
+            ./scripts/lint-chart.sh "$chart"
+          done

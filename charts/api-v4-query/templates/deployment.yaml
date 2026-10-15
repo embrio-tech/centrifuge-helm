@@ -7,6 +7,7 @@ metadata:
     {{- include "centrifuge-api-v4-query.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -22,19 +23,30 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "centrifuge-api-v4-query.labels" . | nindent 8 }}
+        {{- include "centrifuge-api-v4-query.podLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
         - name: query
           image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
@@ -59,27 +71,34 @@ spec:
             - name: POSTGRAPHILE_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ (.Values.querySecretName | default .Values.databaseSecretName) | quote }}
+                  name: {{ .Values.databaseSecretName | quote }}
                   key: uri
             - name: PUBLIC_SCHEMA
               value: {{ .Values.schema | quote }}
-            - name: QUERY_READ_ONLY
-              value: "true"
+            - name: QUERY_ID
+              value: {{ .Values.id | quote }}
+            - name: PROJECTION_ID
+              value: {{ .Values.projectionId | quote }}
             - name: CFG_NETWORK
-              value: {{ .Values.network | default .Values.global.env.CFG_NETWORK | quote }}
+              value: {{ .Values.network | quote }}
             {{- range $key, $value := .Values.global.env }}
-            {{- if ne $key "CFG_NETWORK" }}
             - name: {{ $key }}
-              value: {{ $value | quote }}
+              value: {{ $value | toString | quote }}
             {{- end }}
-            {{- end }}
-          {{- with .Values.env }}
+            {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- end }}
           {{- with .Values.envFrom }}
           envFrom:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.tmpSizeLimit }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

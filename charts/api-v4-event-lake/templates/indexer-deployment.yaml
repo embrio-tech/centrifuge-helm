@@ -1,4 +1,5 @@
 {{- if .Values.indexer.enabled }}
+{{- $db := .Values.databaseSecretName }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,6 +8,8 @@ metadata:
     {{- include "centrifuge-api-v4-event-lake.indexer.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.indexer.replicaCount }}
+  revisionHistoryLimit: 3
+  # A full reindex can take hours before /ready turns 200.
   progressDeadlineSeconds: 43200
   strategy:
     type: Recreate
@@ -15,32 +18,36 @@ spec:
       {{- include "centrifuge-api-v4-event-lake.indexer.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.indexer.podAnnotations }}
       annotations:
+        # The ConfigMap is a Helm hook, so a change to it alone would not roll the Pod.
+        checksum/config: {{ include "centrifuge-api-v4-event-lake.configData" . | sha256sum }}
+        {{- with .Values.indexer.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
       labels:
-        {{- include "centrifuge-api-v4-event-lake.indexer.labels" . | nindent 8 }}
+        {{- include "centrifuge-api-v4-event-lake.indexer.podLabels" . | nindent 8 }}
         {{- with .Values.indexer.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      {{- with (.Values.indexer.imagePullSecrets | default .Values.imagePullSecrets) }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.indexer.podSecurityContext }}
+      {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
         - name: indexer
-          {{- with .Values.indexer.securityContext }}
+          image: {{ include "centrifuge-api-v4-event-lake.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          image: "{{ .Values.indexer.image.repository }}:{{ .Values.indexer.image.tag | default "latest" }}"
-          imagePullPolicy: {{ .Values.indexer.image.pullPolicy }}
           ports:
             - name: http
               containerPort: {{ .Values.indexer.service.port }}
@@ -66,55 +73,38 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           env:
-            - name: ENVIO_API_TOKEN
+            {{- range $envKey, $secretKey := dict "ENVIO_PG_HOST" "host" "ENVIO_PG_PORT" "port" "ENVIO_PG_USER" "username" "ENVIO_PG_DATABASE" "dbname" "ENVIO_PG_PASSWORD" "password" }}
+            - name: {{ $envKey }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "centrifuge-api-v4-event-lake.apiSecretName" . | quote }}
-                  key: ENVIO_API_TOKEN
-                  optional: true
-            - name: ENVIO_PG_HOST
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "centrifuge-api-v4-event-lake.dbSecretName" . }}
-                  key: host
-            - name: ENVIO_PG_PORT
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "centrifuge-api-v4-event-lake.dbSecretName" . }}
-                  key: port
-            - name: ENVIO_PG_USER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "centrifuge-api-v4-event-lake.dbSecretName" . }}
-                  key: username
-            - name: ENVIO_PG_DATABASE
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "centrifuge-api-v4-event-lake.dbSecretName" . }}
-                  key: dbname
-            - name: ENVIO_PG_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "centrifuge-api-v4-event-lake.dbSecretName" . }}
-                  key: password
+                  name: {{ $db | quote }}
+                  key: {{ $secretKey }}
+            {{- end }}
             - name: ENVIO_PG_SCHEMA
-              value: {{ include "centrifuge-api-v4-event-lake.indexGeneration" . | quote }}
+              value: {{ .Values.generation | quote }}
             - name: INDEX_GENERATION
-              value: {{ include "centrifuge-api-v4-event-lake.indexGeneration" . | quote }}
+              value: {{ .Values.generation | quote }}
             - name: REDPANDA_CLIENT_ID
-              value: {{ include "centrifuge-api-v4-event-lake.clientId" . | quote }}
-          {{- with .Values.indexer.env }}
+              value: {{ printf "envio-origination-%s-%s" .Values.environment .Values.id | quote }}
+            - name: PRODUCER_ID
+              value: {{ .Values.id | quote }}
+            - name: API_V4_ENVIRONMENT
+              value: {{ .Values.environment | quote }}
+            {{- with .Values.indexer.env }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- end }}
           envFrom:
             - configMapRef:
-                name: {{ .Release.Name }}-config
+                name: {{ include "centrifuge-api-v4-event-lake.configMapName" . }}
+            {{- with .Values.envioSecretName }}
+            # ENVIO_API_TOKEN plus optional ENVIO_RPC_URL_<chainId> overrides. Listed
+            # after the ConfigMap so its keys win.
             - secretRef:
-                name: {{ include "centrifuge-api-v4-event-lake.apiSecretName" . | quote }}
-                optional: true
-          {{- with .Values.indexer.envFrom }}
+                name: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.indexer.envFrom }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- end }}
       {{- with .Values.indexer.volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}

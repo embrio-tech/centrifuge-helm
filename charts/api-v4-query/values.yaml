@@ -1,41 +1,61 @@
+# Identity. All required; the GitOps ApplicationSet maps them from the Query object.
 environment: ""
 network: ""
 id: ""
 projectionId: ""
 schema: ""
+# Pre-deployed Secret for the read-only query role (keys: uri). Never the owner
+# app Secret: read-only is enforced by the database role, not by this chart.
 databaseSecretName: ""
-querySecretName: ""
 
 image:
   repository: ghcr.io/centrifuge/public-api
   digest: ""
+  # Informational only; becomes the app.kubernetes.io/version label.
   displayTag: ""
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
 replicaCount: 1
-readOnly: true
+terminationGracePeriodSeconds: 30
+tmpSizeLimit: 64Mi
 
 service:
   type: ClusterIP
   port: 5000
+
+podSecurityContext:
+  runAsNonRoot: true
+  # The image runs as the non-numeric user "node"; the kubelet needs the UID to
+  # verify runAsNonRoot.
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
 
 resources:
   requests: { cpu: 100m, memory: 512Mi }
   limits: { cpu: "1", memory: 512Mi }
 
 startupProbe:
-  httpGet: { path: /health, port: 5000 }
+  httpGet: { path: /health, port: http }
   periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 30
 readinessProbe:
-  httpGet: { path: /health, port: 5000 }
+  httpGet: { path: /health, port: http }
   periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 3
 livenessProbe:
-  httpGet: { path: /health, port: 5000 }
+  httpGet: { path: /health, port: http }
   periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 3
@@ -50,7 +70,5 @@ affinity: {}
 
 global:
   env:
-    CFG_NETWORK: ""
     NODE_ENV: production
     PUBLIC_API_PORT: "5000"
-    REDPANDA_BROKERS: cfg-api-redpanda:9093

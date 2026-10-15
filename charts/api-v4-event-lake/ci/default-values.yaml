@@ -1,0 +1,15 @@
+environment: test-eu
+network: testnet
+id: pr-20261013-01
+generation: id202610130000
+selectedNetworks: [11155111, 84532, 421614]
+databaseSecretName: cfg-api-v4-database-event-lake-test-eu-postgres-app
+envioSecretName: cfg-api-v4-event-lake-rpc-overrides
+image:
+  digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  displayTag: sha-example
+erpc:
+  urlTemplate: http://cfg-api-erpc:4000/main/evm/%s
+global:
+  env:
+    REGISTRY_INCLUDE: v3_2,v3_3

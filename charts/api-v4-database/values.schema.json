@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "centrifuge-api-v4-database values",
+  "type": "object",
+  "required": ["kind", "environment", "postgres", "sqlRo"],
+  "properties": {
+    "kind": { "enum": ["public", "event-lake"] },
+    "environment": { "type": "string", "pattern": "^(main|test)-(eu|us)$" },
+    "postgres": {
+      "type": "object",
+      "required": ["fullnameOverride", "cluster"],
+      "properties": {
+        "fullnameOverride": {
+          "type": "string",
+          "pattern": "^cfg-api-v4-database-(public|event-lake)-(main|test)-(eu|us)-postgres$"
+        },
+        "backups": {
+          "type": "object",
+          "properties": { "enabled": { "const": false } }
+        },
+        "cluster": {
+          "type": "object",
+          "required": ["storage", "walStorage"],
+          "properties": {
+            "enableSuperuserAccess": { "const": false },
+            "storage": { "$ref": "#/definitions/storage" },
+            "walStorage": {
+              "allOf": [
+                { "$ref": "#/definitions/storage" },
+                {
+                  "required": ["enabled"],
+                  "properties": { "enabled": { "const": true } }
+                }
+              ]
+            },
+            "roles": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "ensure", "passwordSecret"],
+                "properties": {
+                  "name": { "type": "string", "pattern": "^[a-z_][a-z0-9_]*$" },
+                  "superuser": { "const": false },
+                  "createdb": { "const": false },
+                  "createrole": { "const": false },
+                  "replication": { "const": false },
+                  "bypassrls": { "const": false }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "sqlRo": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "allowedCidrs": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "public" } } },
+      "then": {
+        "properties": {
+          "postgres": {
+            "properties": {
+              "cluster": {
+                "required": ["roles", "initdb"],
+                "properties": {
+                  "roles": {
+                    "allOf": [
+                      { "contains": { "properties": { "name": { "const": "query" } }, "required": ["name"] } },
+                      {
+                        "contains": {
+                          "required": ["name", "inRoles"],
+                          "properties": {
+                            "name": { "const": "activator" },
+                            "inRoles": { "contains": { "const": "cfg_activation" } }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "initdb": {
+                    "description": "The activation ledger bootstrap creates cfg_activation and cfg_release; the activator cannot.",
+                    "required": ["postInitApplicationSQL"],
+                    "properties": {
+                      "postInitApplicationSQL": {
+                        "allOf": [
+                          { "contains": { "const": "CREATE ROLE cfg_activation NOLOGIN" } },
+                          { "contains": { "const": "CREATE SCHEMA cfg_release AUTHORIZATION cfg_activation" } }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "event-lake" } } },
+      "then": {
+        "properties": { "sqlRo": { "properties": { "enabled": { "const": false } } } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "sqlRo": { "properties": { "enabled": { "const": true } } } }
+      },
+      "then": {
+        "properties": {
+          "sqlRo": {
+            "required": ["hostname"],
+            "properties": { "hostname": { "type": "string", "minLength": 1 } }
+          },
+          "postgres": {
+            "properties": {
+              "cluster": {
+                "properties": {
+                  "roles": {
+                    "contains": { "properties": { "name": { "const": "public_ro" } }, "required": ["name"] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "storage": {
+      "type": "object",
+      "required": ["size", "storageClass"],
+      "properties": {
+        "size": { "type": "string", "pattern": "^[0-9]+(Gi|Ti)$" },
+        "storageClass": { "enum": ["ceph-perf3", "perf3"] }
+      }
+    }
+  }
+}

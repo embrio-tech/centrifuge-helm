@@ -1,0 +1,10 @@
+environment: test-eu
+network: testnet
+id: pj-20261013-01
+producerId: pr-20261013-01
+schema: pj_20261013_01
+generation: id202610130000
+databaseSecretName: cfg-api-v4-database-public-test-eu-postgres-app
+image:
+  digest: sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+  displayTag: sha-example

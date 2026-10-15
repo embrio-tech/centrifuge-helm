@@ -1,24 +1,27 @@
 # Required: public | event-lake
 kind: ""
+# Required: Environment ID, e.g. test-eu.
 environment: ""
-network: ""
-region: ""
 
-nameOverride: ""
-fullnameOverride: ""
-
-# Pre-deployed credential Secrets. This chart never renders Secret values.
-secrets:
-  # CNPG still creates <cluster>-app; workloads reference that name from GitOps.
-  querySecretName: ""
-  activatorSecretName: ""
-  publicRoSecretName: ""
-
+# CloudNative-PG cluster subchart (alias postgres). Only Environment-specific values
+# are expected from GitOps: fullnameOverride, instances, storage, walStorage, roles,
+# initdb and certificates.
 postgres:
-  # Always enabled. This chart exists only to own the Cluster.
-  enabled: true
+  # Required. Becomes the Cluster name and the <name>-app Secret prefix.
+  fullnameOverride: ""
+  type: postgresql
+  mode: standalone
+  backups:
+    enabled: false
   cluster:
     instances: 1
+    # Superuser login stays off; owner and role Secrets cover every workload.
+    enableSuperuserAccess: false
+    enablePDB: true
+    annotations:
+      # Argo CD never prunes or deletes the Cluster, even when the Application or
+      # the chart stops rendering it. Removal is a manual, reviewed step.
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
     storage:
       size: 64Gi
       storageClass: ""
@@ -31,15 +34,22 @@ postgres:
       limits: { cpu: "2", memory: 2Gi }
     affinity:
       topologyKey: topology.cinder.csi.openstack.org/zone
+    certificates: {}
+    # CNPG managed roles. Passwords come from pre-deployed basic-auth Secrets
+    # (passwordSecret.name); this chart never renders Secret data.
     roles: []
 
+# Internet SQL access through a dedicated PgBouncer. Public databases only.
 sqlRo:
   enabled: false
   hostname: ""
-  annotations: {}
+  allowedCidrs:
+    - 0.0.0.0/0
   service:
     type: LoadBalancer
     port: 5432
+    annotations: {}
+    loadBalancerSourceRanges: []
   pooler:
     name: sql-ro
     type: rw

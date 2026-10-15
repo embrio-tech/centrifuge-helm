@@ -1,28 +1,24 @@
-{{- $routes := list
-  (dict "role" "staging" "query" .Values.stagingQuery)
-  (dict "role" "production" "query" .Values.productionQuery)
-  (dict "role" "rollback" "query" .Values.rollbackQuery)
-}}
-{{- range $routes }}
-{{- if not (regexMatch "^q-[0-9]{8}-[0-9]{2}$" .query) }}
-{{- fail (printf "%s query must be a Query ID" .role) }}
-{{- end }}
+{{- range $role := list "staging" "production" "rollback" }}
+{{- $query := index $.Values (printf "%sQuery" $role) }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ $.Release.Name }}-{{ .role }}
+  name: {{ printf "%s-%s" $.Release.Name $role }}
   labels:
-    api-v4.centrifuge.io/component: routes
-    api-v4.centrifuge.io/environment: {{ $.Values.environment | quote }}
-    api-v4.centrifuge.io/role: {{ .role | quote }}
+    {{- include "centrifuge-api-v4-routes.labels" $ | nindent 4 }}
+    api-v4.centrifuge.io/role: {{ $role | quote }}
 spec:
+  type: ClusterIP
+  # Query Pods are selected by object labels only, never by Helm or Argo CD
+  # tracking labels, so a route moves by changing the Query ID here.
   selector:
     api-v4.centrifuge.io/environment: {{ $.Values.environment | quote }}
     api-v4.centrifuge.io/component: query
-    api-v4.centrifuge.io/query-id: {{ .query | quote }}
+    api-v4.centrifuge.io/query-id: {{ $query | quote }}
   ports:
     - name: http
       port: {{ $.Values.service.port }}
       targetPort: http
+      protocol: TCP
 {{- end }}

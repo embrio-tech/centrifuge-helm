@@ -1,0 +1,2 @@
+environment: test-eu
+activatorSecretName: cfg-api-v4-database-public-test-eu-postgres-activator

@@ -1,0 +1,24 @@
+{{- if .Values.sqlRo.enabled }}
+# The cfg-api namespace is default-deny and only admits Traefik, so the pooler
+# needs its own ingress rule to be reachable through the LoadBalancer.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ printf "%s-sql-ro" .Release.Name | trunc 63 | trimSuffix "-" }}
+  labels:
+    {{- include "centrifuge-api-v4-database.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/poolerName: {{ include "centrifuge-api-v4-database.sqlRoPoolerName" . }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- range .Values.sqlRo.allowedCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      ports:
+        - port: 5432
+          protocol: TCP
+{{- end }}
