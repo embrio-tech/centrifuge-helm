@@ -2423,6 +2423,16 @@ entries:
   centrifuge-api-v4-routes:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2026-10-15T15:42:32.763035275Z"
+    description: Stable API v4 staging and production Services
+    digest: d25e0034c552399a372a8be47282c627029da11f4cc50361486c9ff5f5cd0757
+    name: centrifuge-api-v4-routes
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-routes-0.1.3/centrifuge-api-v4-routes-0.1.3.tgz
+    version: 0.1.3
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2026-10-15T10:12:49.479512784Z"
     description: Stable API v4 staging and production Services
     digest: a480b9b2c2b88e217e58ffb174dcf768ebdef4c04294c79c3f1865fe24d6cbf4
@@ -3644,4 +3654,4 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/redpanda-0.1.2/redpanda-0.1.2.tgz
     version: 0.1.2
-generated: "2026-10-15T13:24:50.468820997Z"
+generated: "2026-10-15T15:42:49.392716134Z"
