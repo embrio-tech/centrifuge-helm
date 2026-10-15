@@ -2,7 +2,7 @@ apiVersion: v2
 name: centrifuge-api-v4-database
 description: Environment-owned CloudNative-PG Cluster for API v4 (public or event-lake)
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.1.0"
 dependencies:
   - alias: postgres
