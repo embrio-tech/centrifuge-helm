@@ -77,6 +77,10 @@ spec:
               value: {{ include "centrifuge-api-v4-public.publicSchema" . | quote }}
             - name: INDEX_GENERATION
               value: {{ include "centrifuge-api-v4-public.indexGeneration" . | quote }}
+            {{- if .Values.handlers.failClosed }}
+            - name: HANDLERS_FAIL_CLOSED
+              value: "true"
+            {{- end }}
             - name: PUBLIC_API_HEALTH_URL
               value: {{ printf "http://%s:%v/health" (include "centrifuge-api-v4-public.query.fullname" .) .Values.query.service.port | quote }}
           {{- with .Values.handlers.env }}

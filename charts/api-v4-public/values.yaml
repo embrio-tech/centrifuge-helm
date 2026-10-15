@@ -3,6 +3,8 @@ fullnameOverride: ""
 imagePullSecrets: []
 
 global:
+  # Matches the routes chart environment so route Services can select these pods.
+  environment: ""
   env:
     CFG_NETWORK: "mainnet"
     NODE_ENV: "production"
@@ -17,6 +19,11 @@ global:
 query:
   enabled: true
   replicaCount: 1                  # runs DB migrations at boot; keep 1
+  readOnly: false
+  # Route Services select api-v4.centrifuge.io/query-id and tier. Leave empty
+  # until this release is a Query the routes chart points at.
+  id: ""
+  tier: ""
   image:
     repository: ghcr.io/centrifuge/public-api
     pullPolicy: Always
@@ -71,6 +78,7 @@ query:
 handlers:
   enabled: true
   replicaCount: 1                  # consumer group = REDPANDA_CLIENT_ID; never scale up
+  failClosed: false
   image:
     repository: ghcr.io/centrifuge/chain-event-handlers
     pullPolicy: Always
@@ -113,6 +121,11 @@ handlers:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+
+# Explicit projection schema. When set, PUBLIC_SCHEMA uses this instead of the
+# handlers image tag. Format: pj_YYYYMMDD_NN.
+projection:
+  schema: ""
 
 # Tag the public views read. Set on the release that owns the database.
 # Staging leaves this empty and sets postgres.enabled false.

@@ -32,3 +32,20 @@ app.kubernetes.io/part-of: cfg-api-v4
 app.kubernetes.io/name: {{ include "centrifuge-api-v4-public.query.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+Labels the routes chart selects. Kept off the Deployment selector so a Query
+id change does not make the selector immutable.
+*/}}
+{{- define "centrifuge-api-v4-public.query.routeLabels" -}}
+api-v4.centrifuge.io/component: query
+{{- with .Values.global.environment }}
+api-v4.centrifuge.io/environment: {{ . | quote }}
+{{- end }}
+{{- with .Values.query.id }}
+api-v4.centrifuge.io/query-id: {{ . | quote }}
+{{- end }}
+{{- with .Values.query.tier }}
+api-v4.centrifuge.io/tier: {{ . | quote }}
+{{- end }}
+{{- end }}

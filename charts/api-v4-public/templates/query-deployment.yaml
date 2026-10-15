@@ -23,6 +23,7 @@ spec:
       {{- end }}
       labels:
         {{- include "centrifuge-api-v4-public.query.labels" . | nindent 8 }}
+        {{- include "centrifuge-api-v4-public.query.routeLabels" . | nindent 8 }}
         {{- with .Values.query.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -75,6 +76,10 @@ spec:
                   key: uri
             - name: PUBLIC_SCHEMA
               value: {{ include "centrifuge-api-v4-public.publicSchema" . | quote }}
+            {{- if .Values.query.readOnly }}
+            - name: QUERY_READ_ONLY
+              value: "true"
+            {{- end }}
           {{- with .Values.query.env }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
