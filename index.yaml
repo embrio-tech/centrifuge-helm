@@ -1995,7 +1995,44 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v3-0.1.0/centrifuge-api-v3-0.1.0.tgz
     version: 0.1.0
+  centrifuge-api-v4-activation:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-10-15T09:00:38.064095811Z"
+    description: Fenced one-shot SQL activation/compensation Job for API v4
+    digest: 91f6f8a77bd25b8817afa9edc968091e9b7048bd88f47614d9fc096a1ffbed7b
+    name: centrifuge-api-v4-activation
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-activation-0.1.1/centrifuge-api-v4-activation-0.1.1.tgz
+    version: 0.1.1
+  centrifuge-api-v4-database:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-10-15T09:00:38.278503779Z"
+    dependencies:
+    - alias: postgres
+      name: cluster
+      repository: https://cloudnative-pg.github.io/charts
+      version: 0.3.1
+    description: Environment-owned CloudNative-PG Cluster for API v4 (public or event-lake)
+    digest: 3acff115b1c5e9dcc1aef01c8e6f006e5dfa8d8c17f56a5c072f457789de98a6
+    name: centrifuge-api-v4-database
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-database-0.1.1/centrifuge-api-v4-database-0.1.1.tgz
+    version: 0.1.1
   centrifuge-api-v4-event-lake:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-10-15T09:00:39.943561036Z"
+    description: Centrifuge event-lake Producer (Envio indexer -> Redpanda). No CloudNative-PG.
+    digest: 9988cd64beda736f51f7704a4d9076d482b21d17e41087d6c52c5b055d9f7c90
+    name: centrifuge-api-v4-event-lake
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-event-lake-0.2.1/centrifuge-api-v4-event-lake-0.2.1.tgz
+    version: 0.2.1
   - apiVersion: v2
     appVersion: 0.1.0
     created: "2026-10-12T12:49:23.238135661Z"
@@ -2098,6 +2135,17 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-event-lake-0.1.2/centrifuge-api-v4-event-lake-0.1.2.tgz
     version: 0.1.2
+  centrifuge-api-v4-projection:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-10-15T09:00:40.201002655Z"
+    description: API v4 Projection (handlers only). No CloudNative-PG.
+    digest: fa563b7f30487e3c59f76971d8288aec2bad95e6934fe8eb268fda73b296d521
+    name: centrifuge-api-v4-projection
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-projection-0.1.1/centrifuge-api-v4-projection-0.1.1.tgz
+    version: 0.1.1
   centrifuge-api-v4-public:
   - apiVersion: v2
     appVersion: 0.1.0
@@ -2286,6 +2334,28 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-public-0.1.2/centrifuge-api-v4-public-0.1.2.tgz
     version: 0.1.2
+  centrifuge-api-v4-query:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-10-15T09:00:43.097622482Z"
+    description: API v4 Query (read-only public-api). No CloudNative-PG and no migrations.
+    digest: ea098b7ff5bc3312b71b81455ce5c393121fbb224db235275e131425e6a1c67c
+    name: centrifuge-api-v4-query
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-query-0.1.1/centrifuge-api-v4-query-0.1.1.tgz
+    version: 0.1.1
+  centrifuge-api-v4-routes:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-10-15T09:00:43.316849621Z"
+    description: Stable API v4 staging and production Services
+    digest: 8173a7d1e8871961d969a36473a344ffc277304abdd3f9aaebcfba1a04401c7a
+    name: centrifuge-api-v4-routes
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-routes-0.1.1/centrifuge-api-v4-routes-0.1.1.tgz
+    version: 0.1.1
   erpc:
   - apiVersion: v2
     appVersion: 0.0.63
@@ -3489,4 +3559,4 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/redpanda-0.1.2/redpanda-0.1.2.tgz
     version: 0.1.2
-generated: "2026-10-13T10:26:47.521677248Z"
+generated: "2026-10-15T09:00:58.12889556Z"
