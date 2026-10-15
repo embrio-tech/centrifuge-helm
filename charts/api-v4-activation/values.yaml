@@ -17,8 +17,8 @@ operation:
   expectedOldProjection: ""
   desiredProjection: ""
 
-# Handlers image of the desired Projection: its public view allowlist is the
-# SQL ABI being activated.
+# Handlers image of the desired Projection: its public-db schema defines the
+# public views being activated.
 image:
   repository: ghcr.io/centrifuge/chain-event-handlers
   digest: ""
