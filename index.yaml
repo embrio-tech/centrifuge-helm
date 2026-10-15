@@ -2214,6 +2214,23 @@ entries:
   centrifuge-api-v4-public:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2026-10-15T16:53:23.254492335Z"
+    dependencies:
+    - alias: postgres
+      condition: postgres.enabled
+      name: cluster
+      repository: https://cloudnative-pg.github.io/charts
+      version: 0.3.1
+    description: Centrifuge public API (PostGraphile GraphQL) and chain-event-handlers
+      (Kafka consumer) with CloudNative-PG
+    digest: 89f045ca4ef26d512463d230bf01372c47a6001603f5a8eb29ec2ed880b54b81
+    name: centrifuge-api-v4-public
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-public-0.1.13/centrifuge-api-v4-public-0.1.13.tgz
+    version: 0.1.13
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2026-10-13T10:26:30.380282367Z"
     dependencies:
     - alias: postgres
@@ -3654,4 +3671,4 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/redpanda-0.1.2/redpanda-0.1.2.tgz
     version: 0.1.2
-generated: "2026-10-15T15:42:49.392716134Z"
+generated: "2026-10-15T16:53:42.433467529Z"
