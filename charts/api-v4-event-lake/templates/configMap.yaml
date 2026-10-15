@@ -1,7 +1,8 @@
+{{- include "centrifuge-api-v4-event-lake.validate" . }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Release.Name }}-config
+  name: {{ include "centrifuge-api-v4-event-lake.configMapName" . }}
   labels:
     {{- include "centrifuge-api-v4-event-lake.labels" . | nindent 4 }}
   annotations:
@@ -9,7 +10,4 @@ metadata:
     "helm.sh/hook-weight": "-10"
     "helm.sh/hook-delete-policy": before-hook-creation
 data:
-  {{- range $key, $value := .Values.global.env }}
-  {{ $key }}: {{ $value | quote }}
-  {{- end }}
-  {{- include "centrifuge-api-v4-event-lake.erpcRpcEnv" . | nindent 2 }}
+  {{- include "centrifuge-api-v4-event-lake.configData" . | nindent 2 }}

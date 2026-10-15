@@ -1,41 +1,65 @@
+# Identity. All required; the GitOps ApplicationSet maps them from the Projection object.
 environment: ""
 network: ""
 id: ""
 producerId: ""
 schema: ""
 generation: ""
+# Environment-owned public database app Secret (keys: uri). Owner role: this
+# Projection migrates and writes its own schema.
 databaseSecretName: ""
 
 image:
   repository: ghcr.io/centrifuge/chain-event-handlers
   digest: ""
+  # Informational only; becomes the app.kubernetes.io/version label.
   displayTag: ""
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
 replicaCount: 1
-failClosed: false
+# Greenfield Projections stop on any unapproved skip instead of advancing the offset.
+failClosed: true
+terminationGracePeriodSeconds: 60
+# public-db writes rewritten migration files under the OS temp dir.
+tmpSizeLimit: 256Mi
 
 service:
   type: ClusterIP
   port: 3001
+
+podSecurityContext:
+  runAsNonRoot: true
+  # The image runs as the non-numeric user "node"; the kubelet needs the UID to
+  # verify runAsNonRoot.
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
 
 resources:
   requests: { cpu: 250m, memory: 1Gi }
   limits: { cpu: "1", memory: 2Gi }
 
 startupProbe:
-  httpGet: { path: /health, port: 3001 }
+  httpGet: { path: /health, port: http }
   periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 90
 readinessProbe:
-  httpGet: { path: /ready, port: 3001 }
+  httpGet: { path: /ready, port: http }
   periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 3
 livenessProbe:
-  httpGet: { path: /health, port: 3001 }
+  httpGet: { path: /health, port: http }
   periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 6
@@ -50,7 +74,6 @@ affinity: {}
 
 global:
   env:
-    CFG_NETWORK: ""
     NODE_ENV: production
     HANDLERS_HEALTH_PORT: "3001"
     REDPANDA_BROKERS: cfg-api-redpanda:9093

@@ -1,26 +1,47 @@
 environment: ""
-network: ""
+# Pre-deployed Secret for the activator role (keys: uri).
 activatorSecretName: ""
-publicSecretName: ""
 
-# Set per operation. Empty means the Application is idle (no Job).
+# One fenced operation. Nothing renders while operationId is empty. In GitOps
+# this block comes from environments/<env>/activation.yaml.
 operation:
-  enabled: false
-  command: activate # activate | compensate
+  # activate | compensate
+  command: activate
+  # Lowercase DNS label; becomes part of the Job name. New for every operation:
+  # a rerun with the same id and request is a no-op.
   operationId: ""
+  # cfg_release.active_state.fence before this operation; "0" before the first.
   fence: ""
+  # Projection IDs (pj-YYYYMMDD-NN). expectedOldProjection is "none" for the
+  # first activation of an Environment.
   expectedOldProjection: ""
   desiredProjection: ""
-  gitCommit: ""
 
+# Handlers image of the desired Projection: its public view allowlist is the
+# SQL ABI being activated.
 image:
   repository: ghcr.io/centrifuge/chain-event-handlers
   digest: ""
   pullPolicy: IfNotPresent
 
+imagePullSecrets: []
+activeDeadlineSeconds: 300
+
+podSecurityContext:
+  runAsNonRoot: true
+  # The image runs as the non-numeric user "node"; the kubelet needs the UID to
+  # verify runAsNonRoot.
+  runAsUser: 1000
+  runAsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
 resources:
   requests: { cpu: 50m, memory: 128Mi }
   limits: { cpu: 200m, memory: 256Mi }
-
-backoffLimit: 0
-ttlSecondsAfterFinished: 86400

@@ -7,6 +7,8 @@ metadata:
     {{- include "centrifuge-api-v4-projection.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: 3
+  # Every start replays Kafka from the beginning before /ready turns 200.
   progressDeadlineSeconds: 3600
   strategy:
     type: Recreate
@@ -20,19 +22,30 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "centrifuge-api-v4-projection.labels" . | nindent 8 }}
+        {{- include "centrifuge-api-v4-projection.podLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
         - name: handlers
           image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
@@ -68,24 +81,27 @@ spec:
             - name: PROJECTION_ID
               value: {{ .Values.id | quote }}
             - name: CFG_NETWORK
-              value: {{ .Values.network | default .Values.global.env.CFG_NETWORK | quote }}
-            {{- if .Values.failClosed }}
+              value: {{ .Values.network | quote }}
             - name: HANDLERS_FAIL_CLOSED
-              value: "true"
-            {{- end }}
+              value: {{ .Values.failClosed | toString | quote }}
             {{- range $key, $value := .Values.global.env }}
-            {{- if and (ne $key "CFG_NETWORK") (ne $key "INDEX_GENERATION") }}
             - name: {{ $key }}
-              value: {{ $value | quote }}
+              value: {{ $value | toString | quote }}
             {{- end }}
-            {{- end }}
-          {{- with .Values.env }}
+            {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
-          {{- end }}
+            {{- end }}
           {{- with .Values.envFrom }}
           envFrom:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.tmpSizeLimit }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

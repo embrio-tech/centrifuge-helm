@@ -1,22 +1,19 @@
 {{- define "centrifuge-api-v4-projection.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- .Chart.Name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{/*
+Release names are already unique per object (cfg-api-v4-<environment>-<id>), so the
+release name is the resource name.
+*/}}
 {{- define "centrifuge-api-v4-projection.fullname" -}}
 {{- .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-{{- define "centrifuge-api-v4-projection.labels" -}}
-helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
-app.kubernetes.io/name: {{ include "centrifuge-api-v4-projection.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-app.kubernetes.io/part-of: cfg-api-v4
-api-v4.centrifuge.io/environment: {{ .Values.environment | quote }}
-api-v4.centrifuge.io/component: projection
-api-v4.centrifuge.io/projection-id: {{ .Values.id | quote }}
-{{- end }}
-
+{{/*
+Selector labels are immutable on a Deployment. The Projection ID is part of them
+because a Projection object never changes identity.
+*/}}
 {{- define "centrifuge-api-v4-projection.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "centrifuge-api-v4-projection.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
@@ -25,20 +22,42 @@ api-v4.centrifuge.io/component: projection
 api-v4.centrifuge.io/projection-id: {{ .Values.id | quote }}
 {{- end }}
 
+{{/*
+Pod labels carry no chart version, so a chart bump alone does not restart the Pod.
+*/}}
+{{- define "centrifuge-api-v4-projection.podLabels" -}}
+{{ include "centrifuge-api-v4-projection.selectorLabels" . }}
+app.kubernetes.io/part-of: cfg-api-v4
+api-v4.centrifuge.io/producer-id: {{ .Values.producerId | quote }}
+{{- with .Values.image.displayTag }}
+app.kubernetes.io/version: {{ . | quote }}
+{{- end }}
+{{- end }}
+
+{{- define "centrifuge-api-v4-projection.labels" -}}
+{{ include "centrifuge-api-v4-projection.podLabels" . }}
+helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+Env vars the chart derives from the object identity. global.env must not set them,
+or the Pod would get two entries for one name and the last one silently wins.
+*/}}
+{{- define "centrifuge-api-v4-projection.reservedEnv" -}}
+{{- list "POSTGRAPHILE_DATABASE_URL" "REDPANDA_CLIENT_ID" "PUBLIC_SCHEMA" "INDEX_GENERATION" "PROJECTION_ID" "CFG_NETWORK" "HANDLERS_FAIL_CLOSED" | toJson }}
+{{- end }}
+
 {{- define "centrifuge-api-v4-projection.validate" -}}
-{{- if not (regexMatch "^pj-[0-9]{8}-[0-9]{2}$" .Values.id) }}
-{{- fail "id must be a Projection ID pj-YYYYMMDD-NN" }}
+{{- $reserved := include "centrifuge-api-v4-projection.reservedEnv" . | fromJsonArray }}
+{{- range $key, $_ := .Values.global.env }}
+{{- if has $key $reserved }}
+{{- fail (printf "global.env.%s is derived by the chart; set the matching top-level value instead" $key) }}
 {{- end }}
-{{- if not (regexMatch "^pj_[0-9]{8}_[0-9]{2}$" .Values.schema) }}
-{{- fail "schema must be pj_YYYYMMDD_NN" }}
 {{- end }}
-{{- if not (regexMatch "^id[0-9]{12}$" .Values.generation) }}
-{{- fail "generation must match id plus 12 digits" }}
+{{- range .Values.env }}
+{{- if has .name $reserved }}
+{{- fail (printf "env %s is derived by the chart; set the matching top-level value instead" .name) }}
 {{- end }}
-{{- if not .Values.databaseSecretName }}
-{{- fail "databaseSecretName is required" }}
-{{- end }}
-{{- if not .Values.image.digest }}
-{{- fail "image.digest is required" }}
 {{- end }}
 {{- end }}

@@ -1,0 +1,2 @@
+{{- /* Renders nothing. Fails the release when cross-field rules do not hold. */ -}}
+{{- include "centrifuge-api-v4-database.validate" . -}}

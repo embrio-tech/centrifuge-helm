@@ -1,20 +1,25 @@
-{{- if and (eq .Values.kind "public") .Values.sqlRo.enabled }}
+{{- if .Values.sqlRo.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-sql-ro
+  name: {{ printf "%s-sql-ro" .Release.Name | trunc 63 | trimSuffix "-" }}
   labels:
     {{- include "centrifuge-api-v4-database.labels" . | nindent 4 }}
-  {{- with .Values.sqlRo.annotations }}
+  {{- with .Values.sqlRo.service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
   type: {{ .Values.sqlRo.service.type }}
+  {{- with .Values.sqlRo.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
-    cnpg.io/poolerName: {{ printf "%s-pooler-%s" (include "centrifuge-api-v4-database.cnpgClusterFullname" .) .Values.sqlRo.pooler.name }}
+    cnpg.io/poolerName: {{ include "centrifuge-api-v4-database.sqlRoPoolerName" . }}
   ports:
     - name: postgres
       port: {{ .Values.sqlRo.service.port }}
       targetPort: pgbouncer
+      protocol: TCP
 {{- end }}

@@ -1,5 +1,4 @@
-{{- include "centrifuge-api-v4-database.validate" . }}
 API v4 {{ .Values.kind }} database for {{ .Values.environment }}.
-Cluster: {{ include "centrifuge-api-v4-database.cnpgClusterFullname" . }}
-Dedicated WAL is required. This chart does not configure backups.
-Workloads must reference the operator-managed app Secret; never prune the Cluster from a workload Application.
+Cluster: {{ include "centrifuge-api-v4-database.clusterName" . }} (owner Secret {{ include "centrifuge-api-v4-database.clusterName" . }}-app)
+Dedicated WAL is on. This chart configures no backups.
+The Cluster carries Prune=false,Delete=false; removing it is a manual, reviewed step.

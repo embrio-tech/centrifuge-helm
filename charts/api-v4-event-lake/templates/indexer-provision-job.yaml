@@ -1,9 +1,6 @@
 {{- if .Values.indexer.enabled }}
-{{- $generation := include "centrifuge-api-v4-event-lake.indexGeneration" . }}
-{{- $network := index .Values.global.env "CFG_NETWORK" | default "" | toString }}
-{{- if not (or (eq $network "mainnet") (eq $network "testnet")) }}
-{{- fail "CFG_NETWORK must be mainnet or testnet" }}
-{{- end }}
+{{- $generation := .Values.generation }}
+{{- $network := .Values.network }}
 {{- $brokers := index .Values.global.env "REDPANDA_BROKERS" | default "cfg-api-redpanda:9093" | toString }}
 {{- $registry := index .Values.global.env "REDPANDA_SCHEMA_REGISTRY_URL" | default "http://cfg-api-redpanda:8081" | toString }}
 apiVersion: batch/v1
@@ -11,7 +8,7 @@ kind: Job
 metadata:
   name: {{ include "centrifuge-api-v4-event-lake.indexer.fullname" . }}-provision
   labels:
-    {{- include "centrifuge-api-v4-event-lake.indexer.labels" . | nindent 4 }}
+    {{- include "centrifuge-api-v4-event-lake.labels" . | nindent 4 }}
     app.kubernetes.io/component: provision
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
@@ -26,16 +23,27 @@ spec:
         app.kubernetes.io/name: provision
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: provision
+        {{- include "centrifuge-api-v4-event-lake.identityLabels" . | nindent 8 }}
     spec:
       restartPolicy: Never
-      {{- with (.Values.indexer.imagePullSecrets | default .Values.imagePullSecrets) }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
         - name: topics
           image: "{{ .Values.indexer.provision.rpk.repository }}:{{ .Values.indexer.provision.rpk.tag }}"
           imagePullPolicy: {{ .Values.indexer.provision.rpk.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.indexer.provision.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -75,8 +83,12 @@ spec:
               done
       containers:
         - name: schemas
-          image: "{{ .Values.indexer.image.repository }}:{{ .Values.indexer.image.tag | default "latest" }}"
-          imagePullPolicy: {{ .Values.indexer.image.pullPolicy }}
+          image: {{ include "centrifuge-api-v4-event-lake.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.indexer.provision.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

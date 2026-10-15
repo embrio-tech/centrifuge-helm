@@ -1,0 +1,36 @@
+kind: public
+environment: test-eu
+postgres:
+  fullnameOverride: cfg-api-v4-database-public-test-eu-postgres
+  cluster:
+    storage: { size: 64Gi, storageClass: ceph-perf3 }
+    walStorage: { enabled: true, size: 32Gi, storageClass: ceph-perf3 }
+    initdb:
+      postInitApplicationSQL:
+        - CREATE ROLE cfg_activation NOLOGIN
+        - GRANT pg_read_all_data TO cfg_activation
+        - CREATE SCHEMA cfg_release AUTHORIZATION cfg_activation
+        - GRANT USAGE, CREATE ON SCHEMA public TO cfg_activation
+    certificates:
+      serverAltDNSNames: [sql-v4-test.cfg.embrio.tech]
+    roles:
+      - name: query
+        ensure: present
+        login: true
+        inRoles: [pg_read_all_data]
+        connectionLimit: 20
+        passwordSecret: { name: cfg-api-v4-database-public-test-eu-postgres-query }
+      - name: activator
+        ensure: present
+        login: true
+        inRoles: [cfg_activation]
+        connectionLimit: 2
+        passwordSecret: { name: cfg-api-v4-database-public-test-eu-postgres-activator }
+      - name: public_ro
+        ensure: present
+        login: true
+        connectionLimit: 8
+        passwordSecret: { name: cfg-api-v4-database-public-test-eu-postgres-public-ro }
+sqlRo:
+  enabled: true
+  hostname: sql-v4-test.cfg.embrio.tech

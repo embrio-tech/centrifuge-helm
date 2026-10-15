@@ -1,6 +1,10 @@
-environment: test-eu
+# Required. No defaults: a route must never point at a Query by accident.
+# GitOps passes environments/<env>/routes.yaml as this chart's values file, so the
+# keys match that file.
+environment: ""
+stagingQuery: ""
+productionQuery: ""
+rollbackQuery: ""
+
 service:
   port: 5000
-stagingQuery: q-20261013-01
-productionQuery: q-20261013-01
-rollbackQuery: q-20261013-01

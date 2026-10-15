@@ -1,22 +1,19 @@
 {{- define "centrifuge-api-v4-query.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- .Chart.Name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
+{{/*
+Release names are already unique per object (cfg-api-v4-<environment>-<id>), so the
+release name is the resource name.
+*/}}
 {{- define "centrifuge-api-v4-query.fullname" -}}
 {{- .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-{{- define "centrifuge-api-v4-query.labels" -}}
-helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
-app.kubernetes.io/name: {{ include "centrifuge-api-v4-query.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-app.kubernetes.io/part-of: cfg-api-v4
-api-v4.centrifuge.io/environment: {{ .Values.environment | quote }}
-api-v4.centrifuge.io/component: query
-api-v4.centrifuge.io/query-id: {{ .Values.id | quote }}
-{{- end }}
-
+{{/*
+The routes chart selects Query Pods by environment, component and query-id only.
+Keep those three here and never add a tier or role label.
+*/}}
 {{- define "centrifuge-api-v4-query.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "centrifuge-api-v4-query.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
@@ -25,20 +22,38 @@ api-v4.centrifuge.io/component: query
 api-v4.centrifuge.io/query-id: {{ .Values.id | quote }}
 {{- end }}
 
+{{/*
+Pod labels carry no chart version, so a chart bump alone does not restart the Pods.
+*/}}
+{{- define "centrifuge-api-v4-query.podLabels" -}}
+{{ include "centrifuge-api-v4-query.selectorLabels" . }}
+app.kubernetes.io/part-of: cfg-api-v4
+api-v4.centrifuge.io/projection-id: {{ .Values.projectionId | quote }}
+{{- with .Values.image.displayTag }}
+app.kubernetes.io/version: {{ . | quote }}
+{{- end }}
+{{- end }}
+
+{{- define "centrifuge-api-v4-query.labels" -}}
+{{ include "centrifuge-api-v4-query.podLabels" . }}
+helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+Env vars the chart derives from the object identity. QUERY_READ_ONLY=false is the
+public-api local-dev switch that runs migrations, so a release must never set it.
+*/}}
 {{- define "centrifuge-api-v4-query.validate" -}}
-{{- if not (regexMatch "^q-[0-9]{8}-[0-9]{2}$" .Values.id) }}
-{{- fail "id must be a Query ID q-YYYYMMDD-NN" }}
+{{- $reserved := list "POSTGRAPHILE_DATABASE_URL" "PUBLIC_SCHEMA" "CFG_NETWORK" "QUERY_ID" "PROJECTION_ID" "QUERY_READ_ONLY" }}
+{{- range $key, $_ := .Values.global.env }}
+{{- if has $key $reserved }}
+{{- fail (printf "global.env.%s is derived by the chart; set the matching top-level value instead" $key) }}
 {{- end }}
-{{- if not (regexMatch "^pj_[0-9]{8}_[0-9]{2}$" .Values.schema) }}
-{{- fail "schema must be pj_YYYYMMDD_NN" }}
 {{- end }}
-{{- if not .Values.databaseSecretName }}
-{{- fail "databaseSecretName is required" }}
+{{- range .Values.env }}
+{{- if has .name $reserved }}
+{{- fail (printf "env %s is derived by the chart; set the matching top-level value instead" .name) }}
 {{- end }}
-{{- if not .Values.image.digest }}
-{{- fail "image.digest is required" }}
-{{- end }}
-{{- if ne .Values.readOnly true }}
-{{- fail "readOnly must be true" }}
 {{- end }}
 {{- end }}

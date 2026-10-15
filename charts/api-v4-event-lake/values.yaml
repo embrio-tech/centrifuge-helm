@@ -1,22 +1,37 @@
-nameOverride: ""
-fullnameOverride: ""
+# Producer identity. All required; the GitOps ApplicationSet maps them from the
+# Producer object and its Environment.
+environment: ""
+network: ""
+id: ""
+# INDEX_GENERATION: topic infix and the Envio Postgres schema.
+generation: ""
+# Chain ids this Producer indexes, e.g. [11155111, 84532].
+selectedNetworks: []
+# Environment-owned event-lake database app Secret (keys: host, port, username,
+# password, dbname).
+databaseSecretName: ""
+# Optional pre-deployed Secret with ENVIO_API_TOKEN and ENVIO_RPC_URL_<chainId>
+# overrides. Its keys win over the ConfigMap.
+envioSecretName: ""
+
+image:
+  repository: ghcr.io/centrifuge/event-lake
+  digest: ""
+  # Informational only; becomes the app.kubernetes.io/version label.
+  displayTag: ""
+  pullPolicy: IfNotPresent
+
 imagePullSecrets: []
 
-# Greenfield Producer identity. Required for object-native releases.
-environment: ""
-id: ""
-generation: ""
-# Explicit Environment-owned event-lake database Secret. Required.
-databaseSecretName: ""
+# In-cluster eRPC. `%s` is the chain id. Required: the Service name differs per
+# region (cfg-api-erpc on eu, cfg-api-erpc-us on us).
+erpc:
+  urlTemplate: ""
 
 global:
+  # Runtime env for the indexer ConfigMap. Registry pins and REGISTRY_INCLUDE are
+  # part of the Producer's identity and come from the Producer object.
   env:
-    CFG_NETWORK: "mainnet"
-    SELECTED_NETWORKS: "1,8453"
-    # Published revisions this build indexes. The indexer refuses REGISTRY_VERSION_MAP.
-    # Mainnet is v3,v3_2. Testnet env files override this with v3_3. Do not list both
-    # v3_1 and v3_2: v3_2 already includes the v3_1 deltas.
-    REGISTRY_INCLUDE: "v3,v3_2"
     REDPANDA_BROKERS: "cfg-api-redpanda:9093"
     REDPANDA_SCHEMA_REGISTRY_URL: "http://cfg-api-redpanda:8081"
     LOG_LEVEL: "info"
@@ -24,76 +39,55 @@ global:
     ENVIO_TUI: "false"
     ENVIO_HEALTH_PORT: "8080"
     IPFS_GATEWAY: "https://centrifuge-files.mypinata.cloud/ipfs"
-  # -- Pre-deployed Secret (ENVIO_API_TOKEN + optional ENVIO_RPC_URL_* overrides).
-  apiSecretName: cfg-api-v4-event-lake-rpc-overrides
 
-# -- In-cluster eRPC in the same cluster and namespace (cfg-api). `%s` is replaced with
-# the chain id.
-#
-# The host differs per region: api-v3 in production uses cfg-api-erpc on eu and
-# cfg-api-erpc-us on us (see cfg-api-v3 environments/main.yaml vs main-us.yaml), so the
-# default below only fits eu and every us release must override it.
-#
-# The host is the eRPC Service, which follows the eRPC Helm release name, since the erpc
-# chart's fullname helper returns the release name unchanged when it already contains
-# "erpc". Confirm with `kubectl -n cfg-api get svc` before a first sync.
-erpc:
-  urlTemplate: "http://cfg-api-erpc:4000/main/evm/%s"
+# The image runs as root today, so runAsNonRoot is not set. Everything else that
+# does not depend on the user is locked down.
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
 
 indexer:
   enabled: true
   replicaCount: 1
-  image:
-    repository: ghcr.io/centrifuge/event-lake
-    pullPolicy: IfNotPresent
-    tag: "latest"
   # Creates this release's topics and schema subjects before the indexer rolls.
-  # The id and network come from global.env. rpk is pinned to the cluster's
-  # Redpanda version; cfg-cli reconcile-topics would create RF 1 topics.
+  # rpk is pinned to the cluster's Redpanda version; cfg-cli reconcile-topics
+  # would create RF 1 topics.
   provision:
     rpk:
       repository: docker.redpanda.com/redpandadata/redpanda
       tag: "v26.1.14"
       pullPolicy: IfNotPresent
     resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-  imagePullSecrets: []
-  nameOverride: ""
-  fullnameOverride: ""
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { cpu: 500m, memory: 512Mi }
   podAnnotations: {}
   podLabels: {}
-  podSecurityContext: {}
-  securityContext: {}
   service:
     type: ClusterIP
     port: 8080
   resources:
-    requests:
-      cpu: 500m
-      memory: 4Gi
-    limits:
-      cpu: "2"
-      memory: 4Gi
+    requests: { cpu: 500m, memory: 4Gi }
+    limits: { cpu: "2", memory: 4Gi }
   # /health returns 200 as soon as the entrypoint runs. /ready stays 503 until
   # every selected chain is realtime. Liveness stays on /health so a long
-  # reindex is not killed. progressDeadlineSeconds on the Deployment is 12h.
+  # reindex is not killed.
   startupProbe:
-    httpGet: { path: /health, port: 8080 }
+    httpGet: { path: /health, port: http }
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 60
   readinessProbe:
-    httpGet: { path: /ready, port: 8080 }
+    httpGet: { path: /ready, port: http }
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 3
   livenessProbe:
-    httpGet: { path: /health, port: 8080 }
+    httpGet: { path: /health, port: http }
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 3

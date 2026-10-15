@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "centrifuge-api-v4-activation values",
+  "type": "object",
+  "required": ["environment", "activatorSecretName", "operation", "image"],
+  "properties": {
+    "apiVersion": { "description": "Present when the GitOps activation.yaml is the values file. Ignored." },
+    "kind": { "description": "Present when the GitOps activation.yaml is the values file. Ignored." },
+    "environment": { "type": "string", "pattern": "^(main|test)-(eu|us)$" },
+    "activatorSecretName": { "type": "string", "minLength": 1 },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "command": { "enum": ["activate", "compensate"] },
+        "operationId": { "type": "string", "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" },
+        "fence": { "type": "string" },
+        "expectedOldProjection": { "type": "string" },
+        "desiredProjection": { "type": "string" }
+      }
+    },
+    "image": { "type": "object" },
+    "activeDeadlineSeconds": { "type": "integer", "minimum": 30 }
+  },
+  "if": {
+    "properties": { "operation": { "properties": { "operationId": { "minLength": 1 } } } }
+  },
+  "then": {
+    "properties": {
+      "operation": {
+        "required": ["command", "operationId", "fence", "expectedOldProjection", "desiredProjection"],
+        "properties": {
+          "fence": { "pattern": "^[0-9]+$" },
+          "expectedOldProjection": { "pattern": "^(pj-[0-9]{8}-[0-9]{2}|none)$" },
+          "desiredProjection": { "pattern": "^pj-[0-9]{8}-[0-9]{2}$" }
+        },
+        "if": { "properties": { "expectedOldProjection": { "const": "none" } } },
+        "then": {
+          "properties": { "command": { "const": "activate" }, "fence": { "const": "0" } }
+        }
+      },
+      "image": {
+        "required": ["repository", "digest"],
+        "properties": {
+          "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+        }
+      }
+    }
+  }
+}

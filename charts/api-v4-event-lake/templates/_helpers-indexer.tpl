@@ -1,34 +1,26 @@
-{{/*
-Indexer helpers
-*/}}
-{{- define "centrifuge-api-v4-event-lake.indexer.name" -}}
-{{- default "indexer" .Values.indexer.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- define "centrifuge-api-v4-event-lake.indexer.fullname" -}}
+{{- printf "%s-indexer" .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-{{- define "centrifuge-api-v4-event-lake.indexer.fullname" -}}
-{{- if .Values.indexer.fullnameOverride }}
-{{- .Values.indexer.fullnameOverride | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- $name := default "indexer" .Values.indexer.nameOverride }}
-{{- if contains $name .Release.Name }}
-{{- .Release.Name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
+{{- define "centrifuge-api-v4-event-lake.indexer.selectorLabels" -}}
+app.kubernetes.io/name: indexer
+app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+Pod labels carry no chart version, so a chart bump alone does not restart the
+indexer (a restart re-reads Envio state but is still a needless gap).
+*/}}
+{{- define "centrifuge-api-v4-event-lake.indexer.podLabels" -}}
+{{ include "centrifuge-api-v4-event-lake.indexer.selectorLabels" . }}
+{{ include "centrifuge-api-v4-event-lake.identityLabels" . }}
+{{- with .Values.image.displayTag }}
+app.kubernetes.io/version: {{ . | quote }}
 {{- end }}
 {{- end }}
 
 {{- define "centrifuge-api-v4-event-lake.indexer.labels" -}}
+{{ include "centrifuge-api-v4-event-lake.indexer.podLabels" . }}
 helm.sh/chart: {{ include "centrifuge-api-v4-event-lake.chart" . }}
-{{ include "centrifuge-api-v4-event-lake.indexer.selectorLabels" . }}
-{{- if .Chart.AppVersion }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-{{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-app.kubernetes.io/part-of: cfg-api-v4
-{{- end }}
-
-{{- define "centrifuge-api-v4-event-lake.indexer.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "centrifuge-api-v4-event-lake.indexer.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
