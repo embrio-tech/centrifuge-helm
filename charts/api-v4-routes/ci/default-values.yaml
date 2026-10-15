@@ -2,3 +2,12 @@ environment: test-eu
 stagingQuery: q-20261014-01
 productionQuery: q-20261013-01
 rollbackQuery: q-20261013-01
+ingress:
+  staging:
+    enabled: true
+    host: api-v4-test-s.example.test
+    tlsSecretName: cfg-api-v4-public-test-s-tls
+  production:
+    enabled: false
+    host: api-v4-test.example.test
+    tlsSecretName: cfg-api-v4-public-test-tls

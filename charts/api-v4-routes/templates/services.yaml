@@ -4,7 +4,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ printf "%s-%s" $.Release.Name $role }}
+  name: {{ include "centrifuge-api-v4-routes.serviceName" (dict "Release" $.Release "role" $role) }}
   labels:
     {{- include "centrifuge-api-v4-routes.labels" $ | nindent 4 }}
     api-v4.centrifuge.io/role: {{ $role | quote }}

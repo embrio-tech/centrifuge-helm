@@ -8,3 +8,40 @@ rollbackQuery: ""
 
 service:
   port: 5000
+
+# Traefik Ingress and edge CORS/CSP for public hostnames. Hostnames and TLS secret
+# names are set per Environment from GitOps; both roles start disabled until cutover.
+ingress:
+  className: traefik
+  annotations:
+    kubernetes.io/tls-acme: "true"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  staging:
+    enabled: false
+    host: ""
+    tlsSecretName: ""
+  production:
+    enabled: false
+    host: ""
+    tlsSecretName: ""
+  cors:
+    maxAgeSeconds: 86400
+    allowMethods:
+      - GET
+      - POST
+      - OPTIONS
+    allowHeaders:
+      - Content-Type
+      - Accept
+    allowOriginList:
+      - http://localhost:3000
+      - http://localhost:3003
+    allowOriginListRegex:
+      - ^https://([a-z0-9-]+\.)*centrifuge\.io$
+      - ^https://([a-z0-9-]+\.)*centrifugelabs\.io$
+      - ^https://([a-z0-9-]+\.)*centrifugescan\.io$
+      - ^https://([a-z0-9-]+\.)*centrifuge-kf\.workers\.dev$
+  csp:
+    graphql: "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    ruru: "default-src 'self'; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
