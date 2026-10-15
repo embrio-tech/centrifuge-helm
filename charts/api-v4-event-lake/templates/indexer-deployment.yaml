@@ -102,7 +102,7 @@ spec:
             - name: INDEX_GENERATION
               value: {{ include "centrifuge-api-v4-event-lake.indexGeneration" . | quote }}
             - name: REDPANDA_CLIENT_ID
-              value: {{ printf "envio-origination-%s" .Release.Name | quote }}
+              value: {{ include "centrifuge-api-v4-event-lake.clientId" . | quote }}
           {{- with .Values.indexer.env }}
             {{- toYaml . | nindent 12 }}
           {{- end }}

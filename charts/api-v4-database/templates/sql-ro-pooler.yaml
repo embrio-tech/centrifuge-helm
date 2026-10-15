@@ -1,0 +1,22 @@
+{{- include "centrifuge-api-v4-database.validate" . }}
+{{- if and (eq .Values.kind "public") .Values.sqlRo.enabled }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: {{ printf "%s-pooler-%s" (include "centrifuge-api-v4-database.cnpgClusterFullname" .) .Values.sqlRo.pooler.name }}
+  labels:
+    {{- include "centrifuge-api-v4-database.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  cluster:
+    name: {{ include "centrifuge-api-v4-database.cnpgClusterFullname" . }}
+  instances: {{ .Values.sqlRo.pooler.instances }}
+  type: {{ .Values.sqlRo.pooler.type }}
+  pgbouncer:
+    poolMode: {{ .Values.sqlRo.pooler.poolMode }}
+    parameters:
+      {{- toYaml .Values.sqlRo.pooler.parameters | nindent 6 }}
+    pg_hba:
+      {{- toYaml .Values.sqlRo.pooler.pg_hba | nindent 6 }}
+{{- end }}

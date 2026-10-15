@@ -1,0 +1,5 @@
+{{- include "centrifuge-api-v4-database.validate" . }}
+API v4 {{ .Values.kind }} database for {{ .Values.environment }}.
+Cluster: {{ include "centrifuge-api-v4-database.cnpgClusterFullname" . }}
+Dedicated WAL is required. This chart does not configure backups.
+Workloads must reference the operator-managed app Secret; never prune the Cluster from a workload Application.

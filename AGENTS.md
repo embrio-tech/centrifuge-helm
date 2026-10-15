@@ -27,10 +27,17 @@ The v4 Argo examples are multi-source: chart from this repo, `valueFiles` from t
 | --- | --- | --- | --- |
 | `charts/api-v2` | `centrifuge-api-v2` | `centrifuge-api` | legacy stack (node/query subcharts). Frozen. |
 | `charts/api-v3` | `centrifuge-api-v3` | `centrifuge-api` | Ponder indexer + query + cli + CNPG. Current production. Structural reference. |
-| `charts/api-v4-event-lake` | `centrifuge-api-v4-event-lake` | same | Envio indexer producing to Redpanda + own CNPG |
-| `charts/api-v4-public` | `centrifuge-api-v4-public` | same | `query` (PostGraphile) + `handlers` (Kafka consumer) + CNPG public-db |
+| `charts/api-v4-database` | `centrifuge-api-v4-database` | same | Greenfield CNPG only (public or event-lake kind). Mandatory dedicated WAL. No backups. |
+| `charts/api-v4-event-lake` | `centrifuge-api-v4-event-lake` | same | Producer-only origination. Requires `databaseSecretName`. No CNPG. |
+| `charts/api-v4-projection` | `centrifuge-api-v4-projection` | same | Handlers only. Owns `pj_*` schema migration. |
+| `charts/api-v4-query` | `centrifuge-api-v4-query` | same | Read-only public-api. No migrations. |
+| `charts/api-v4-activation` | `centrifuge-api-v4-activation` | same | Fenced SQL activate/compensate Job. |
+| `charts/api-v4-routes` | `centrifuge-api-v4-routes` | same | staging/production/rollback Services by Query ID. |
+| `charts/api-v4-public` | `centrifuge-api-v4-public` | same | Legacy monolithic public+handlers+CNPG. Pinned on old Applications only until retirement. |
 | `charts/redpanda` | `redpanda` | `centrifuge-redpanda` | upstream Redpanda subchart. No indexer generation ids |
 | `charts/erpc` | `erpc` | `erpc` | eRPC + Redis + CNPG EVM cache |
+
+Greenfield CNPG ownership is only `centrifuge-api-v4-database`. Workload charts must render zero `postgresql.cnpg.io/*` resources.
 
 Chart dir name and chart name differ. Argo CD `chart:` uses the `Chart.yaml` name; paths use the dir name.
 
@@ -67,13 +74,15 @@ Topics are scoped by network and indexer generation (`INDEX_GENERATION`, `id` pl
 
 ## Component facts that constrain the templates
 
-**event-lake indexer** (`ghcr.io/centrifuge/event-lake`, port 8080, `GET /health`, `GET /ready`):
+Service names follow `centrifuge/api-v4-gitops` `docs/GLOSSARY.md`: origination, handlers, public-api. The chart component keys are `indexer`, `handlers`, and `query`.
+
+**origination**, chart component `indexer` (`ghcr.io/centrifuge/event-lake`, port 8080, `GET /health`, `GET /ready`):
 Postgres via split vars `ENVIO_PG_HOST|PORT|USER|PASSWORD|DATABASE`, all `secretKeyRef` into the CNPG app secret. `ENVIO_PG_SCHEMA` is `INDEX_GENERATION` (`id` plus 12 digits). A missing or malformed value fails the render. Envio runs its own migrations. Network selection is env only (`CFG_NETWORK`, `SELECTED_NETWORKS`, `REGISTRY_INCLUDE`). `ENVIO_RPC_URL_<chainId>` is required per selected chain and is generated in the ConfigMap by the `erpcRpcEnv` helper from `erpc.urlTemplate` (`%s` = chain id), skipping keys already present in `global.env`. `REDPANDA_CLIENT_ID` must be unique per release (`envio-origination-<release>`) because hydration uses a temporary consumer group derived from it. A `pre-install,pre-upgrade` hook creates this release's topics and schema subjects from `CFG_NETWORK` and `INDEX_GENERATION` before the indexer rolls. It does not render when `indexer.enabled` is false. `/health` turns 200 at entrypoint, well before the indexer is caught up, and mirrors Envio's `/healthz` once Envio is up. `/ready` stays 503 until Envio's `envio_progress_ready` gauge is 1 for every chain in `SELECTED_NETWORKS`; the entrypoint reads Envio's `/metrics` on `ENVIO_INDEXER_PORT` (9898) for that. Startup and liveness on `/health`, readiness on `/ready`.
 
 **handlers** (`ghcr.io/centrifuge/chain-event-handlers`, port 3001, `GET /health`, `GET /ready`):
 `replicaCount` may be 0 while the indexer is still backfilling. The consumer group id IS `REDPANDA_CLIENT_ID`. Every start waits for `PUBLIC_API_HEALTH_URL`, truncates projection tables and replays Kafka from the beginning, which takes minutes. Startup and liveness stay on `/health`. Readiness is `/ready`, which stays 503 until replay finishes and the live consumer is running. `progressDeadlineSeconds` is 3600. No TLS and no SASL in its Kafka client, hence plaintext in-cluster Redpanda. Does not run migrations. `PUBLIC_SCHEMA` is `handlers.image.tag` (`sha-` plus hex). `PUBLIC_API_HEALTH_URL` must be built from the query fullname helper plus `query.service.port`, not hardcoded.
 
-**public-api / query** (`ghcr.io/centrifuge/public-api`, port 5000, `GET /health`, GraphQL at `/graphql`):
+**public-api**, chart component `query` (`ghcr.io/centrifuge/public-api`, port 5000, `GET /health`, GraphQL at `/graphql`):
 Runs Drizzle migrations at boot, so keep `replicaCount: 1` and a generous `startupProbe.failureThreshold`. `POSTGRAPHILE_DATABASE_URL` from secret key `uri`.
 
 **redpanda**: the chart runs the cluster only. It does not take `INDEX_GENERATION` and does not create topics or schema subjects. Each event-lake release does that in a `pre-install,pre-upgrade` hook from its own `CFG_NETWORK` and `INDEX_GENERATION`, using `rpk` for the topics (1 partition, RF 3, speculative compacted) and that release's indexer image for `cfg-cli events schemas update -n -g`. `centrifuge-redpanda.name` stays `redpanda-bootstrap`, never `redpanda`: the upstream Kafka Service selects on `app.kubernetes.io/name: redpanda` + instance with no component label, so a pod named `redpanda` would join the Kafka, Schema Registry and Admin endpoints while it runs.

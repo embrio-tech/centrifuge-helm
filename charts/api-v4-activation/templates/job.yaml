@@ -1,0 +1,58 @@
+{{- if .Values.operation.enabled }}
+{{- if not (or (eq .Values.operation.command "activate") (eq .Values.operation.command "compensate")) }}
+{{- fail "operation.command must be activate or compensate" }}
+{{- end }}
+{{- if not .Values.activatorSecretName }}
+{{- fail "activatorSecretName is required" }}
+{{- end }}
+{{- if not .Values.image.digest }}
+{{- fail "image.digest is required" }}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-%s" .Release.Name .Values.operation.operationId | trunc 63 | trimSuffix "-" }}
+  labels:
+    app.kubernetes.io/name: centrifuge-api-v4-activation
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/part-of: cfg-api-v4
+    api-v4.centrifuge.io/environment: {{ .Values.environment | quote }}
+    api-v4.centrifuge.io/component: activation
+    api-v4.centrifuge.io/operation-id: {{ .Values.operation.operationId | quote }}
+spec:
+  backoffLimit: {{ .Values.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        api-v4.centrifuge.io/environment: {{ .Values.environment | quote }}
+        api-v4.centrifuge.io/component: activation
+        api-v4.centrifuge.io/operation-id: {{ .Values.operation.operationId | quote }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: activator
+          image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - node
+            - dist/activation/cli.js
+            - {{ .Values.operation.command | quote }}
+            - --database-url=$(DATABASE_URL)
+            - --environment={{ .Values.environment }}
+            - --fence={{ .Values.operation.fence }}
+            - --expected-old-projection={{ .Values.operation.expectedOldProjection }}
+            - --desired-projection={{ .Values.operation.desiredProjection }}
+            - --git-commit={{ .Values.operation.gitCommit }}
+            - --operation-id={{ .Values.operation.operationId }}
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.activatorSecretName | quote }}
+                  key: uri
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

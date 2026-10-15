@@ -1,12 +1,6 @@
 apiVersion: v2
 name: centrifuge-api-v4-event-lake
-description: Centrifuge event-lake ingestion (Envio indexer -> Redpanda protocol events)
+description: Centrifuge event-lake Producer (Envio indexer -> Redpanda). No CloudNative-PG.
 type: application
-version: 0.1.7
+version: 0.2.0
 appVersion: "0.1.0"
-dependencies:
-  - alias: postgres
-    name: cluster
-    condition: postgres.enabled
-    version: 0.3.1
-    repository: https://cloudnative-pg.github.io/charts

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: centrifuge-api-v4-activation
+description: Fenced one-shot SQL activation/compensation Job for API v4
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

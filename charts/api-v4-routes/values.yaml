@@ -1,0 +1,6 @@
+environment: test-eu
+service:
+  port: 5000
+stagingQuery: q-20261013-01
+productionQuery: q-20261013-01
+rollbackQuery: q-20261013-01

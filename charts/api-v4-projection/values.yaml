@@ -1,0 +1,56 @@
+environment: ""
+network: ""
+id: ""
+producerId: ""
+schema: ""
+generation: ""
+databaseSecretName: ""
+
+image:
+  repository: ghcr.io/centrifuge/chain-event-handlers
+  digest: ""
+  displayTag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+replicaCount: 1
+failClosed: false
+
+service:
+  type: ClusterIP
+  port: 3001
+
+resources:
+  requests: { cpu: 250m, memory: 1Gi }
+  limits: { cpu: "1", memory: 2Gi }
+
+startupProbe:
+  httpGet: { path: /health, port: 3001 }
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 90
+readinessProbe:
+  httpGet: { path: /ready, port: 3001 }
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+livenessProbe:
+  httpGet: { path: /health, port: 3001 }
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+env: []
+envFrom: []
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+global:
+  env:
+    CFG_NETWORK: ""
+    NODE_ENV: production
+    HANDLERS_HEALTH_PORT: "3001"
+    REDPANDA_BROKERS: cfg-api-redpanda:9093

@@ -2,6 +2,13 @@ nameOverride: ""
 fullnameOverride: ""
 imagePullSecrets: []
 
+# Greenfield Producer identity. Required for object-native releases.
+environment: ""
+id: ""
+generation: ""
+# Explicit Environment-owned event-lake database Secret. Required.
+databaseSecretName: ""
+
 global:
   env:
     CFG_NETWORK: "mainnet"
@@ -17,13 +24,7 @@ global:
     ENVIO_TUI: "false"
     ENVIO_HEALTH_PORT: "8080"
     IPFS_GATEWAY: "https://centrifuge-files.mypinata.cloud/ipfs"
-  # -- CNPG app Secret sourcing DB credentials (host/port/username/password/dbname).
-  # Default name: <release>-postgres-app (created by the cluster subchart).
-  # dbSecretName: ""
   # -- Pre-deployed Secret (ENVIO_API_TOKEN + optional ENVIO_RPC_URL_* overrides).
-  # The indexer always mounts this name (optional: true). Empty here still
-  # resolves to cfg-api-v4-event-lake-rpc-overrides so a live Secret reaches
-  # the process. Secret keys override ConfigMap ENVIO_RPC_URL_* values.
   apiSecretName: cfg-api-v4-event-lake-rpc-overrides
 
 # -- In-cluster eRPC in the same cluster and namespace (cfg-api). `%s` is replaced with
@@ -103,23 +104,3 @@ indexer:
   affinity: {}
   env: []
   envFrom: []
-
-postgres:
-  enabled: false
-  cluster:
-    instances: 1
-    initdb:
-      database: envio
-    storage:
-      size: 64Gi
-      storageClass: "ceph-perf3"
-    # Separate WAL PVC. Once enabled on a live Cluster, CNPG rejects disabling it.
-    walStorage:
-      enabled: true
-      size: 32Gi
-      storageClass: "ceph-perf3"
-    resources:
-      requests: { cpu: 500m, memory: 4Gi }
-      limits: { cpu: "2", memory: 4Gi }
-    affinity:
-      topologyKey: topology.cinder.csi.openstack.org/zone

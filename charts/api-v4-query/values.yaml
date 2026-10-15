@@ -1,0 +1,56 @@
+environment: ""
+network: ""
+id: ""
+projectionId: ""
+schema: ""
+databaseSecretName: ""
+querySecretName: ""
+
+image:
+  repository: ghcr.io/centrifuge/public-api
+  digest: ""
+  displayTag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+replicaCount: 1
+readOnly: true
+
+service:
+  type: ClusterIP
+  port: 5000
+
+resources:
+  requests: { cpu: 100m, memory: 512Mi }
+  limits: { cpu: "1", memory: 512Mi }
+
+startupProbe:
+  httpGet: { path: /health, port: 5000 }
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+readinessProbe:
+  httpGet: { path: /health, port: 5000 }
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+livenessProbe:
+  httpGet: { path: /health, port: 5000 }
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+env: []
+envFrom: []
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+global:
+  env:
+    CFG_NETWORK: ""
+    NODE_ENV: production
+    PUBLIC_API_PORT: "5000"
+    REDPANDA_BROKERS: cfg-api-redpanda:9093

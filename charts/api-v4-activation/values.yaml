@@ -1,0 +1,26 @@
+environment: ""
+network: ""
+activatorSecretName: ""
+publicSecretName: ""
+
+# Set per operation. Empty means the Application is idle (no Job).
+operation:
+  enabled: false
+  command: activate # activate | compensate
+  operationId: ""
+  fence: ""
+  expectedOldProjection: ""
+  desiredProjection: ""
+  gitCommit: ""
+
+image:
+  repository: ghcr.io/centrifuge/chain-event-handlers
+  digest: ""
+  pullPolicy: IfNotPresent
+
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  limits: { cpu: 200m, memory: 256Mi }
+
+backoffLimit: 0
+ttlSecondsAfterFinished: 86400
