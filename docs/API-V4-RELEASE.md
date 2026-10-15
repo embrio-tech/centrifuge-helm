@@ -5,13 +5,18 @@ public-api, or any combination of them. Topic infrastructure and live Argo CD
 administration are outside its scope. This document names the required
 prerequisites but does not describe those systems.
 
+Service names follow `centrifuge/api-v4-gitops` `docs/GLOSSARY.md`:
+origination is the event-lake process (chart component `indexer`), handlers is
+`chain-event-handlers`, public-api is the GraphQL server (chart component
+`query`).
+
 ## Release model
 
 The application path is:
 
 ```text
-chains -> event-lake origination -> protocol-event topics
-       -> chain-event-handlers -> public-db -> public-api
+chains -> origination -> protocol-event topics
+       -> handlers -> public-db -> public-api
 ```
 
 Origination and the public stack are separate Helm releases. Each release reads
@@ -22,13 +27,26 @@ one values file from an application repository:
 | `cfg-api-v4-event-lake-<stem>` | `centrifuge/event-lake` `environments/<stem>.yaml` |
 | `cfg-api-v4-public-<stem>` | `centrifuge/backend` `environments/<stem>.yaml` |
 
-A stem is `<network>[-us][-s]`:
+### Legacy stems (monolithic `api-v4-public` / `api-v4-event-lake`)
+
+A legacy stem is `<network>[-us][-s]`:
 
 - `main` or `test` selects the network.
-- `-us` selects the US cluster. No `-us` selects EU.
+- `-us` selects the US cluster. **Absent `-us` means EU** (implicit region, kept for existing env files).
 - `-s` is staging. No `-s` is production.
 
-For example, `main-us-s` is US mainnet staging.
+For example, `main-us-s` is US mainnet staging and `main` is EU mainnet production.
+
+### Greenfield Environments (`api-v4-gitops`)
+
+New work uses an **Environment** id `(main|test)-(eu|us)` with **both regions spelled out**:
+
+- `main-eu`, `main-us`, `test-eu`, `test-us`
+- Staging vs production is a **route** inside that Environment (`routes.yaml`, hostnames), not a `-s` suffix on the id.
+
+GitOps lives under `centrifuge/api-v4-gitops` `environments/<environment>/`. Chart releases look like `cfg-api-v4-routes-main-eu`, `cfg-api-v4-main-eu-q-…`, and so on. See `centrifuge/api-v4-gitops` `docs/GLOSSARY.md`.
+
+Legacy stems and greenfield Environment ids are different namespaces. Do not infer `main-eu` from a legacy `main` values file without checking which stack you are shipping.
 
 The chart comes from this repository at the Argo Application's
 `targetRevision`. The values file comes from the application repository at
@@ -52,7 +70,7 @@ so do not treat merge as proof that a rollout started.
 | Backend images | backend `handlers.image.tag` and `query.image.tag` | Select the handlers and public-api images |
 | Projection schema | backend `handlers.image.tag` | Becomes `PUBLIC_SCHEMA` for both backend pods |
 | Public SQL views | backend `publicViews.schema` when `postgres.enabled: true` | Selects the tagged schema exposed through `public` views |
-| Ingestion generation | `INDEX_GENERATION` in both values files | Selects the Envio schema and protocol-event topics |
+| Generation | `INDEX_GENERATION` in both values files | Selects the Envio schema and protocol-event topics |
 | Envio config hash | event-lake `indexSchemaHash` | Records the generated Envio config accepted by that generation |
 
 Use immutable `sha-<hex>` image tags. The image workflows currently produce
@@ -88,8 +106,8 @@ event-lake and backend values for one stem must agree.
 Under the current release policy, even a public-api-only change moves both
 backend image tags. That creates a new `PUBLIC_SCHEMA` and causes a full
 handlers replay. Deploying public-api independently would require a separate
-compatibility policy for running a newer query image against an older handlers
-schema.
+compatibility policy for running a newer public-api image against an older
+handlers schema.
 
 ## 1. Merge the application change and wait for images
 
@@ -112,7 +130,7 @@ Before using a tag:
 2. Confirm the exact `sha-<7 hex>` tag exists for the intended commit.
 3. Require the event-lake image boot check or both backend smoke checks to pass.
 
-These checks prove that the containers start. They do not prove an indexer
+These checks prove that the containers start. They do not prove origination
 caught up or handlers completed a replay.
 
 ## 2. Decide whether to rotate `INDEX_GENERATION`
@@ -157,8 +175,8 @@ When rotation is required:
 4. Set the same generation in the paired backend values file.
 5. Sync the event-lake release that carries the new generation. Its
    pre-upgrade hook creates that release's topics and schema subjects from
-   `CFG_NETWORK` and `INDEX_GENERATION` before the indexer rolls. The Redpanda
-   release does not list generations. The producer disables automatic topic
+   `CFG_NETWORK` and `INDEX_GENERATION` before origination rolls. The Redpanda
+   release does not list generations. Origination disables automatic topic
    creation, so the hook has to succeed before publishing starts.
 
 If the hash command cannot restore generated local files afterwards, run
@@ -276,8 +294,8 @@ Before syncing production:
 6. Record the current production pins for rollback.
 
 Sync origination first when it changed. Wait for `/ready`. Then sync the public
-release. Production indexer and handlers use `Recreate`; handlers truncate the
-selected tagged schema and replay from the beginning.
+release. Production origination and handlers use `Recreate`; handlers truncate
+the selected tagged schema and replay from the beginning.
 
 Repeat the staging verification checklist against production. Previous
 generations and tagged schemas remain in place; cleanup is not part of a
