@@ -77,11 +77,27 @@ Application credentials secret: <this>-app (key uri, username, password, ...).
 Handlers image tag used as the public schema name. latest is refused.
 */}}
 {{- define "centrifuge-api-v4-public.publicSchema" -}}
+{{- $views := .Values.publicViews.schema | default "" | toString -}}
+{{- if $views -}}
+{{- if not (regexMatch "^(pj_[0-9]{8}_[0-9]{2}|sha-[0-9a-f]+$)" $views) -}}
+{{- fail "publicViews.schema must be pj_YYYYMMDD_NN or an immutable sha- tag" -}}
+{{- end -}}
+{{- $views -}}
+{{- else -}}
+{{- $explicit := .Values.projection.schema | default "" | toString -}}
+{{- if $explicit -}}
+{{- if not (regexMatch "^pj_[0-9]{8}_[0-9]{2}$" $explicit) -}}
+{{- fail "projection.schema must be pj_YYYYMMDD_NN" -}}
+{{- end -}}
+{{- $explicit -}}
+{{- else -}}
 {{- $tag := .Values.handlers.image.tag | default "" | toString -}}
 {{- if not (regexMatch "^sha-[0-9a-f]+$" $tag) -}}
 {{- fail "handlers.image.tag must be an immutable sha- tag. latest is not a schema name." -}}
 {{- end -}}
 {{- $tag -}}
+{{- end -}}
+{{- end -}}
 {{- end }}
 
 {{/*
