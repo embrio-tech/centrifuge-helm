@@ -76,4 +76,7 @@ global:
   env:
     NODE_ENV: production
     HANDLERS_HEALTH_PORT: "3001"
+    # Empty sends handler logs to stdout. The default file under /app fails on the
+    # read-only root filesystem and the process exits before logging why.
+    HANDLERS_LOG_FILE: ""
     REDPANDA_BROKERS: cfg-api-redpanda:9093
