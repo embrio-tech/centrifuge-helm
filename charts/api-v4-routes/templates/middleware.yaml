@@ -1,0 +1,56 @@
+{{- $gqlMw := printf "%s-graphql-headers" (include "centrifuge-api-v4-routes.fullname" .) -}}
+{{- $ruruMw := printf "%s-ruru-headers" (include "centrifuge-api-v4-routes.fullname" .) -}}
+{{- $cors := .Values.ingress.cors -}}
+{{- $csp := .Values.ingress.csp -}}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ $gqlMw }}
+  labels:
+    {{- include "centrifuge-api-v4-routes.labels" . | nindent 4 }}
+spec:
+  headers:
+    accessControlAllowCredentials: false
+    accessControlMaxAge: {{ $cors.maxAgeSeconds }}
+    accessControlAllowMethods:
+      {{- range $cors.allowMethods }}
+      - {{ . }}
+      {{- end }}
+    accessControlAllowHeaders:
+      {{- range $cors.allowHeaders }}
+      - {{ . }}
+      {{- end }}
+    accessControlAllowOriginList:
+      {{- range $cors.allowOriginList }}
+      - {{ . | quote }}
+      {{- end }}
+    accessControlAllowOriginListRegex:
+      {{- range $cors.allowOriginListRegex }}
+      - {{ . | quote }}
+      {{- end }}
+    addVaryHeader: true
+    contentTypeNosniff: true
+    referrerPolicy: "no-referrer"
+    frameDeny: true
+    stsSeconds: 31536000
+    stsIncludeSubdomains: true
+    contentSecurityPolicy: {{ $csp.graphql | quote }}
+    customResponseHeaders:
+      Cross-Origin-Resource-Policy: cross-origin
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ $ruruMw }}
+  labels:
+    {{- include "centrifuge-api-v4-routes.labels" . | nindent 4 }}
+spec:
+  headers:
+    addVaryHeader: true
+    contentTypeNosniff: true
+    referrerPolicy: "no-referrer"
+    frameDeny: true
+    stsSeconds: 31536000
+    stsIncludeSubdomains: true
+    contentSecurityPolicy: {{ $csp.ruru | quote }}

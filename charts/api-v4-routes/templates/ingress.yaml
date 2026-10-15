@@ -1,0 +1,74 @@
+{{- range $role := list "staging" "production" }}
+{{- $cfg := index $.Values.ingress $role }}
+{{- if $cfg.enabled }}
+{{- $svcName := include "centrifuge-api-v4-routes.serviceName" (dict "Release" $.Release "role" $role) }}
+{{- $gqlMw := printf "%s-graphql-headers" (include "centrifuge-api-v4-routes.fullname" $) }}
+{{- $ruruMw := printf "%s-ruru-headers" (include "centrifuge-api-v4-routes.fullname" $) }}
+{{- $gqlMwRef := include "centrifuge-api-v4-routes.middlewareRef" (dict "Release" $.Release "middlewareName" $gqlMw) }}
+{{- $ruruMwRef := include "centrifuge-api-v4-routes.middlewareRef" (dict "Release" $.Release "middlewareName" $ruruMw) }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $svcName }}
+  labels:
+    {{- include "centrifuge-api-v4-routes.labels" $ | nindent 4 }}
+    api-v4.centrifuge.io/role: {{ $role | quote }}
+  annotations:
+    {{- with $.Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $gqlMwRef | quote }}
+spec:
+  {{- with $.Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  tls:
+    - hosts:
+        - {{ $cfg.host | quote }}
+      secretName: {{ $cfg.tlsSecretName }}
+  rules:
+    - host: {{ $cfg.host | quote }}
+      http:
+        paths:
+          - path: /graphql
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $svcName }}
+                port:
+                  number: {{ $.Values.service.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ printf "%s-ruru" $svcName | trunc 63 | trimSuffix "-" }}
+  labels:
+    {{- include "centrifuge-api-v4-routes.labels" $ | nindent 4 }}
+    api-v4.centrifuge.io/role: {{ $role | quote }}
+  annotations:
+    {{- with $.Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    traefik.ingress.kubernetes.io/router.middlewares: {{ $ruruMwRef | quote }}
+spec:
+  {{- with $.Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  tls:
+    - hosts:
+        - {{ $cfg.host | quote }}
+      secretName: {{ $cfg.tlsSecretName }}
+  rules:
+    - host: {{ $cfg.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $svcName }}
+                port:
+                  number: {{ $.Values.service.port }}
+{{- end }}
+{{- end }}
