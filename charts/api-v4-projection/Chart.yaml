@@ -2,5 +2,5 @@ apiVersion: v2
 name: centrifuge-api-v4-projection
 description: API v4 Projection (handlers only). No CloudNative-PG.
 type: application
-version: 0.1.4
+version: 0.1.5
 appVersion: "0.1.0"
