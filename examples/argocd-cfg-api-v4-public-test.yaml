@@ -20,6 +20,12 @@ spec:
         releaseName: cfg-api-v4-public-test
         valueFiles:
           - $values/environments/test.yaml
+        # Cutover to routes Ingress: merge this block on the live Application only.
+        # Do not set query.ingress.enabled in centrifuge/backend environments/test.yaml.
+        # values: |
+        #   query:
+        #     ingress:
+        #       enabled: false
     - repoURL: git@github.com:centrifuge/backend.git
       targetRevision: main
       ref: values

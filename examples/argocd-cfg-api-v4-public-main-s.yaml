@@ -20,6 +20,10 @@ spec:
         releaseName: cfg-api-v4-public-main-s
         valueFiles:
           - $values/environments/main-s.yaml
+        # values: |
+        #   query:
+        #     ingress:
+        #       enabled: false
         values: |
           global:
             dbSecretName: cfg-api-v4-public-main-postgres-app

@@ -20,6 +20,10 @@ spec:
         releaseName: cfg-api-v4-public-test-s
         valueFiles:
           - $values/environments/test-s.yaml
+        # values: |
+        #   query:
+        #     ingress:
+        #       enabled: false
         values: |
           global:
             dbSecretName: cfg-api-v4-public-test-postgres-app

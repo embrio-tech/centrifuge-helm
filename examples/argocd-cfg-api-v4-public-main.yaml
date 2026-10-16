@@ -20,6 +20,10 @@ spec:
         releaseName: cfg-api-v4-public-main
         valueFiles:
           - $values/environments/main.yaml
+        # values: |
+        #   query:
+        #     ingress:
+        #       enabled: false
     - repoURL: git@github.com:centrifuge/backend.git
       targetRevision: main
       ref: values
