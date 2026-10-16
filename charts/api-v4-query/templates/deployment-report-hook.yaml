@@ -1,0 +1,133 @@
+{{- if .Values.deploymentReport.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "centrifuge-api-v4-query.fullname" . }}-deployment-report
+  labels:
+    {{- include "centrifuge-api-v4-query.labels" . | nindent 4 }}
+data:
+  github-transition-report.mjs: |
+{{ .Files.Get "files/github-transition-report.mjs" | nindent 4 }}
+  github-transition-report-lib.mjs: |
+{{ .Files.Get "files/github-transition-report-lib.mjs" | nindent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "centrifuge-api-v4-query.fullname" . }}-report-success
+  labels:
+    {{- include "centrifuge-api-v4-query.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        {{- include "centrifuge-api-v4-query.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: report
+          image: "{{ .Values.deploymentReport.reporterImage.repository }}@{{ .Values.deploymentReport.reporterImage.digest }}"
+          imagePullPolicy: IfNotPresent
+          workingDir: /opt/report
+          command: ["node", "github-transition-report.mjs"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          env:
+            {{- include "centrifuge-api-v4-query.deploymentReportEnv" (dict "root" . "state" "success") | nindent 12 }}
+          volumeMounts:
+            - name: report-scripts
+              mountPath: /opt/report
+              readOnly: true
+            - name: github-key
+              mountPath: /etc/github
+              readOnly: true
+      volumes:
+        - name: report-scripts
+          configMap:
+            name: {{ include "centrifuge-api-v4-query.fullname" . }}-deployment-report
+        - name: github-key
+          secret:
+            secretName: {{ .Values.deploymentReport.githubDeploymentsSecretName | quote }}
+            items:
+              - key: private-key.pem
+                path: private-key.pem
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "centrifuge-api-v4-query.fullname" . }}-report-failure
+  labels:
+    {{- include "centrifuge-api-v4-query.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: SyncFail
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        {{- include "centrifuge-api-v4-query.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: report
+          image: "{{ .Values.deploymentReport.reporterImage.repository }}@{{ .Values.deploymentReport.reporterImage.digest }}"
+          imagePullPolicy: IfNotPresent
+          workingDir: /opt/report
+          command: ["node", "github-transition-report.mjs"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          env:
+            {{- include "centrifuge-api-v4-query.deploymentReportEnv" (dict "root" . "state" "failure") | nindent 12 }}
+          volumeMounts:
+            - name: report-scripts
+              mountPath: /opt/report
+              readOnly: true
+            - name: github-key
+              mountPath: /etc/github
+              readOnly: true
+      volumes:
+        - name: report-scripts
+          configMap:
+            name: {{ include "centrifuge-api-v4-query.fullname" . }}-deployment-report
+        - name: github-key
+          secret:
+            secretName: {{ .Values.deploymentReport.githubDeploymentsSecretName | quote }}
+            items:
+              - key: private-key.pem
+                path: private-key.pem
+{{- end }}

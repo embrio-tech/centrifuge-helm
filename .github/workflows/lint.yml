@@ -48,6 +48,13 @@ jobs:
         if: steps.changed.outputs.charts != ''
         run: ./scripts/fetch-chart-dependencies.sh
 
+      - name: Reporter unit tests
+        if: steps.changed.outputs.charts != ''
+        run: |
+          set -euo pipefail
+          node --test scripts/github-transition-report.test.mjs
+          ./scripts/check-github-transition-report-drift.sh
+
       - name: Lint
         if: steps.changed.outputs.charts != ''
         run: |

@@ -6,6 +6,22 @@ stagingQuery: ""
 productionQuery: ""
 rollbackQuery: ""
 
+deploymentReport:
+  enabled: false
+  githubDeploymentsSecretName: ""
+  reporterImage:
+    repository: docker.io/library/node
+    digest: sha256:8cdc1415e1d0b3639da00d2ab90164262cb069ac9e6f84e0bbdb34d456f9e581
+  transition: routes
+  task: api-v4:routes
+  component: routes
+  chart:
+    name: centrifuge-api-v4-routes
+    version: ""
+    digest: ""
+  argoExternalUrl: ""
+  environmentUrl: ""
+
 service:
   port: 5000
 

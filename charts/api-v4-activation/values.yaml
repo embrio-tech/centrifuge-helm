@@ -2,6 +2,21 @@ environment: ""
 # Pre-deployed Secret for the activator role (keys: uri).
 activatorSecretName: ""
 
+deploymentReport:
+  enabled: false
+  githubDeploymentsSecretName: ""
+  reporterImage:
+    repository: docker.io/library/node
+    digest: sha256:8cdc1415e1d0b3639da00d2ab90164262cb069ac9e6f84e0bbdb34d456f9e581
+  transition: activation
+  task: api-v4:activation
+  component: activation
+  chart:
+    name: centrifuge-api-v4-activation
+    version: ""
+    digest: ""
+  argoExternalUrl: ""
+
 # One fenced operation. Nothing renders while operationId is empty. In GitOps
 # this block comes from environments/<env>/activation.yaml.
 operation:

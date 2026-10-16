@@ -20,12 +20,21 @@ imagePullSecrets: []
 replicaCount: 1
 # Kafka replay before /ready can exceed one hour on a full resync.
 progressDeadlineSeconds: 21600
-stagingAdopt:
+deploymentReport:
   enabled: false
-  dispatchSecretName: ""
-  curlImage:
-    repository: docker.io/curlimages/curl
-    digest: sha256:08320e836856e45f4cec7ca4e8d023723cbd1bd811303932fad6f350a750b4fa
+  githubDeploymentsSecretName: ""
+  reporterImage:
+    repository: docker.io/library/node
+    digest: sha256:8cdc1415e1d0b3639da00d2ab90164262cb069ac9e6f84e0bbdb34d456f9e581
+  transition: staging-ready
+  task: api-v4:staging-ready
+  component: projection
+  sourceCommit: ""
+  chart:
+    name: ""
+    version: ""
+    digest: ""
+  argoExternalUrl: ""
 # Greenfield Projections stop on any unapproved skip instead of advancing the offset.
 failClosed: true
 terminationGracePeriodSeconds: 60
