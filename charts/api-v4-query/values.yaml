@@ -17,6 +17,12 @@ image:
 
 imagePullSecrets: []
 replicaCount: 1
+stagingAdopt:
+  enabled: false
+  dispatchSecretName: ""
+  curlImage:
+    repository: docker.io/curlimages/curl
+    digest: sha256:08320e836856e45f4cec7ca4e8d023723cbd1bd811303932fad6f350a750b4fa
 terminationGracePeriodSeconds: 30
 tmpSizeLimit: 64Mi
 

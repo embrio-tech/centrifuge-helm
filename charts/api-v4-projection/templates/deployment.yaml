@@ -9,7 +9,7 @@ spec:
   replicas: {{ .Values.replicaCount }}
   revisionHistoryLimit: 3
   # Every start replays Kafka from the beginning before /ready turns 200.
-  progressDeadlineSeconds: 3600
+  progressDeadlineSeconds: {{ .Values.progressDeadlineSeconds }}
   strategy:
     type: Recreate
   selector:
