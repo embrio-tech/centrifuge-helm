@@ -84,7 +84,7 @@ Postgres via split vars `ENVIO_PG_HOST|PORT|USER|PASSWORD|DATABASE`, all `secret
 **handlers** (`ghcr.io/centrifuge/chain-event-handlers`, port 3001, `GET /health`, `GET /ready`):
 `replicaCount` may be 0 while the indexer is still backfilling. The consumer group id IS `REDPANDA_CLIENT_ID`. Every start waits for `PUBLIC_API_HEALTH_URL`, truncates projection tables and replays Kafka from the beginning, which takes minutes. Startup and liveness stay on `/health`. Readiness is `/ready`, which stays 503 until replay finishes and the live consumer is running. `progressDeadlineSeconds` is 3600. No TLS and no SASL in its Kafka client, hence plaintext in-cluster Redpanda. Does not run migrations. `PUBLIC_SCHEMA` is `handlers.image.tag` (`sha-` plus hex). `PUBLIC_API_HEALTH_URL` must be built from the query fullname helper plus `query.service.port`, not hardcoded.
 
-**public-api**, chart component `query` (`ghcr.io/centrifuge/public-api`, port 5000, `GET /health`, GraphQL at `/graphql`):
+**public-api**, chart component `query` (`ghcr.io/centrifuge/public-api`, port 5000, `GET /health` liveness, `GET /ready` startup/readiness, GraphQL at `/graphql`):
 Runs Drizzle migrations at boot, so keep `replicaCount: 1` and a generous `startupProbe.failureThreshold`. `POSTGRAPHILE_DATABASE_URL` from secret key `uri`.
 
 **redpanda**: the chart runs the cluster only. It does not take `INDEX_GENERATION` and does not create topics or schema subjects. Each event-lake release does that in a `pre-install,pre-upgrade` hook from its own `CFG_NETWORK` and `INDEX_GENERATION`, using `rpk` for the topics (1 partition, RF 3, speculative compacted) and that release's indexer image for `cfg-cli events schemas update -n -g`. `centrifuge-redpanda.name` stays `redpanda-bootstrap`, never `redpanda`: the upstream Kafka Service selects on `app.kubernetes.io/name: redpanda` + instance with no component label, so a pod named `redpanda` would join the Kafka, Schema Registry and Admin endpoints while it runs.
@@ -119,7 +119,7 @@ Available locally: `helm` v4, `yq` v4, `kubectl`. No cluster access is assumed. 
 - `indexer`: `replicaCount: 1`, `strategy: Recreate`, no HPA. `handlers`: `strategy: Recreate`, no HPA, `replicaCount` may be 0.
 - Never raise topic partitions above 1 (ordering) and keep speculative compacted.
 - Redpanda Kafka, Schema Registry and Admin stay cluster-internal. No TLS, no SASL (app limitation). Only Console may get an Ingress, and it has no auth.
-- No init containers or migration Jobs for public-db. `public-api` owns those migrations.
+- No init containers or migration Jobs for public-db. Greenfield query does not migrate; handlers own Projection DDL and query waits for it before PostGraphile introspection.
 - Do not modify `charts/api-v2`, `charts/api-v3`, or `charts/erpc` unless the task says so.
 - Do not apply the manifests in `examples/`. They are reviewed by ops.
 - `PLAN-event-lake-public-stack.md` is the original build brief for the v4 charts. It is historical, the charts are the truth. Sections 7b and 8 still list open work.
