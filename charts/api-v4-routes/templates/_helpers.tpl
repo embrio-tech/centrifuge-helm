@@ -29,9 +29,13 @@ Traefik Middleware reference for router.middlewares (namespace-name@kubernetescr
 {{- printf "%s-%s@kubernetescrd" .Release.Namespace .middlewareName -}}
 {{- end }}
 
-{{- define "centrifuge-api-v4-routes.labels" -}}
+{{- define "centrifuge-api-v4-routes.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "centrifuge-api-v4-routes.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{- define "centrifuge-api-v4-routes.labels" -}}
+{{ include "centrifuge-api-v4-routes.selectorLabels" . }}
 app.kubernetes.io/part-of: cfg-api-v4
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
