@@ -73,9 +73,8 @@ indexer:
   resources:
     requests: { cpu: 500m, memory: 4Gi }
     limits: { cpu: "2", memory: 4Gi }
-  # /health returns 200 as soon as the entrypoint runs. /ready stays 503 until
-  # every selected chain is realtime. Liveness stays on /health so a long
-  # reindex is not killed.
+  # /health is liveness: 200 while the entrypoint or Envio HTTP is up (not healthz ok).
+  # /ready stays 503 until every selected chain is realtime.
   startupProbe:
     httpGet: { path: /health, port: http }
     periodSeconds: 10

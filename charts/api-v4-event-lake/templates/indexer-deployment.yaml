@@ -19,7 +19,7 @@ spec:
   template:
     metadata:
       annotations:
-        # The ConfigMap is a Helm hook, so a change to it alone would not roll the Pod.
+        # Roll the Pod when env changes even though the ConfigMap is not a hook resource.
         checksum/config: {{ include "centrifuge-api-v4-event-lake.configData" . | sha256sum }}
         {{- with .Values.indexer.podAnnotations }}
         {{- toYaml . | nindent 8 }}
