@@ -7,9 +7,9 @@ metadata:
     {{- include "centrifuge-api-v4-projection.labels" . | nindent 4 }}
 data:
   github-transition-report.mjs: |
-{{ .Files.Get "files/github-transition-report.mjs" | nindent 4 }}
+{{- .Files.Get "files/github-transition-report.mjs" | nindent 4 }}
   github-transition-report-lib.mjs: |
-{{ .Files.Get "files/github-transition-report-lib.mjs" | nindent 4 }}
+{{- .Files.Get "files/github-transition-report-lib.mjs" | nindent 4 }}
 ---
 apiVersion: batch/v1
 kind: Job

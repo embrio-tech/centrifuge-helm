@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Report API v4 environment transitions to GitHub Deployments (embrio-tech-argocd).
  * Exits 0 even when GitHub is unavailable so Argo sync is not blocked.
@@ -61,7 +60,7 @@ async function installationToken(appId, installationId, privateKeyPem) {
     token: jwt,
     body: {
       repositories: [REPO],
-      permissions: { deployments: "write" },
+      permissions: { contents: "read", deployments: "write", metadata: "read" },
     },
   });
   return data.token;

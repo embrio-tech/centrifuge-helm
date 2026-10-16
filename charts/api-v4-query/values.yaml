@@ -22,7 +22,7 @@ deploymentReport:
   githubDeploymentsSecretName: ""
   reporterImage:
     repository: docker.io/library/node
-    digest: sha256:8cdc1415e1d0b3639da00d2ab90164262cb069ac9e6f84e0bbdb34d456f9e581
+    digest: sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392
   transition: staging-ready
   task: api-v4:staging-ready
   component: query
