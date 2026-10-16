@@ -44,4 +44,5 @@ ingress:
       - ^https://([a-z0-9-]+\.)*centrifuge-kf\.workers\.dev$
   csp:
     graphql: "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
-    ruru: "default-src 'self'; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
+    # Ruru ships inline <style> (body margin / full viewport) and module Workers under /ruru-static/.
+    ruru: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
