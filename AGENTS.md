@@ -43,13 +43,17 @@ chains -> event-lake (Envio) -> Redpanda (Kafka 9093 + Schema Registry 8081)
        -> chain-event-handlers -> public-db (CNPG) -> public-api (PostGraphile)
 ```
 
-Per region cluster (`eu` = main, `us` = `beta`), namespace `cfg-api`, Argo project `cfg-api`. Redpanda is shared. Event-lake and public-api are one release each per env stem (`main`, `main-us`, `test`, `test-s`, …).
+Per region cluster (`eu` = `alpha`, `us` = `beta`), namespace `cfg-api`, Argo project `cfg-api`. Redpanda is shared. A live Environment is `(main|test)-(eu|us)`. It has one Producer, Projection, and Query (`cfg-api-v4-<environment>-<object-id>`) and two database Applications. Staging and production are routes in that Environment, not separate releases.
 
 | Release | Chart | Note |
 | --- | --- | --- |
 | `cfg-api-redpanda` | `redpanda` | shared by both networks, topics are network-prefixed |
-| `cfg-api-v4-event-lake-<name>` | `centrifuge-api-v4-event-lake` | one indexer + one Postgres per env (`main`, `main-us`, `test`, …) |
-| `cfg-api-v4-public-<name>` | `centrifuge-api-v4-public` | handlers + query + public-db per env |
+| `cfg-api-v4-<environment>-pr-*` | `centrifuge-api-v4-event-lake` | one Producer. Postgres is the event-lake database chart |
+| `cfg-api-v4-<environment>-pj-*` | `centrifuge-api-v4-projection` | one Projection. Owns schema `pj_YYYYMMDD_NN` |
+| `cfg-api-v4-<environment>-q-*` | `centrifuge-api-v4-query` | one Query. Read-only |
+| `cfg-api-v4-database-{public\|event-lake}-<environment>` | `centrifuge-api-v4-database` | two Clusters per Environment |
+
+`cfg-api-v4-event-lake-<stem>` and `cfg-api-v4-public-<stem>` (`main`, `main-s`, `test`, `test-s`, …) are the retiring Applications. Do not add values files for them.
 
 Topics are scoped by network and indexer generation (`INDEX_GENERATION`, `id` plus 12 digits): `<network>.<generation>.protocol-events.speculative` (compacted), `<network>.<generation>.protocol-events.confirmed`, `<network>.<generation>.protocol-events-dlq`. 1 partition, RF 3. A new generation is a new topic triple; the unscoped `<network>.protocol-events.*` topics from before the cutover are left in place and no longer written.
 
@@ -76,17 +80,19 @@ Service names follow `centrifuge/api-v4-gitops` `docs/GLOSSARY.md`: origination,
 **origination**, chart component `indexer` (`ghcr.io/centrifuge/event-lake`, port 8080, `GET /health`, `GET /ready`):
 Postgres via split vars `ENVIO_PG_HOST|PORT|USER|PASSWORD|DATABASE`, all `secretKeyRef` into the CNPG app secret. `ENVIO_PG_SCHEMA` is `INDEX_GENERATION` (`id` plus 12 digits). A missing or malformed value fails the render. Envio runs its own migrations. Network selection is env only (`CFG_NETWORK`, `SELECTED_NETWORKS`, `REGISTRY_INCLUDE`). `ENVIO_RPC_URL_<chainId>` is required per selected chain and is generated in the ConfigMap by the `erpcRpcEnv` helper from `erpc.urlTemplate` (`%s` = chain id), skipping keys already present in `global.env`. `REDPANDA_CLIENT_ID` must be unique per Producer (`envio-origination-<environment>-<producerId>` in 0.2+) because hydration uses a temporary consumer group derived from it. In 0.2+ `CFG_NETWORK`, `SELECTED_NETWORKS`, `INDEX_GENERATION`, `PRODUCER_ID` and `API_V4_ENVIRONMENT` come from top-level values (`network`, `selectedNetworks`, `generation`, `id`, `environment`), never `global.env`. A `pre-install,pre-upgrade` hook creates this release's topics and schema subjects from `CFG_NETWORK` and `INDEX_GENERATION` before the indexer rolls. It does not render when `indexer.enabled` is false. `/health` turns 200 at entrypoint, well before the indexer is caught up, and mirrors Envio's `/healthz` once Envio is up. `/ready` stays 503 until Envio's `envio_progress_ready` gauge is 1 for every chain in `SELECTED_NETWORKS`; the entrypoint reads Envio's `/metrics` on `ENVIO_INDEXER_PORT` (9898) for that. Startup and liveness on `/health`, readiness on `/ready`.
 
-**handlers** (`ghcr.io/centrifuge/chain-event-handlers`, port 3001, `GET /health`, `GET /ready`):
-`replicaCount` may be 0 while the indexer is still backfilling. The consumer group id IS `REDPANDA_CLIENT_ID`. Every start waits for `PUBLIC_API_HEALTH_URL`, truncates projection tables and replays Kafka from the beginning, which takes minutes. Startup and liveness stay on `/health`. Readiness is `/ready`, which stays 503 until replay finishes and the live consumer is running. `progressDeadlineSeconds` is 3600. No TLS and no SASL in its Kafka client, hence plaintext in-cluster Redpanda. Does not run migrations. `PUBLIC_SCHEMA` is `handlers.image.tag` (`sha-` plus hex). `PUBLIC_API_HEALTH_URL` must be built from the query fullname helper plus `query.service.port`, not hardcoded.
+**handlers**, chart `centrifuge-api-v4-projection` (`ghcr.io/centrifuge/chain-event-handlers`, port 3001, `GET /health`, `GET /ready`):
+`replicaCount` is 0 or 1. `REDPANDA_CLIENT_ID` is `handlers-<environment>-<generation>-<projectionId>`, and the live consumer group id is that value. Startup migrates `PUBLIC_SCHEMA` (Projection `schema`, `pj_YYYYMMDD_NN`) and replays Kafka from the beginning, which takes minutes. Startup and liveness stay on `/health`. Readiness is `/ready`, which stays 503 until replay finishes and the live consumer is running. `progressDeadlineSeconds` is 3600. No TLS and no SASL, hence plaintext in-cluster Redpanda. The chart does not render a migration Job. Handlers do not read `PUBLIC_API_HEALTH_URL`.
 
-**public-api**, chart component `query` (`ghcr.io/centrifuge/public-api`, port 5000, `GET /health` liveness, `GET /ready` startup/readiness, GraphQL at `/graphql`):
-Runs Drizzle migrations at boot, so keep `replicaCount: 1` and a generous `startupProbe.failureThreshold`. `POSTGRAPHILE_DATABASE_URL` from secret key `uri`.
+The legacy `centrifuge-api-v4-public` chart still falls back to `handlers.image.tag` (`sha-` plus hex) for `PUBLIC_SCHEMA` when `projection.schema` is empty, and it still sets `PUBLIC_API_HEALTH_URL`. That URL is unused by current handlers.
+
+**public-api**, chart `centrifuge-api-v4-query` (`ghcr.io/centrifuge/public-api`, port 5000, `GET /health` liveness, `GET /ready` startup/readiness, GraphQL at `/graphql`):
+Does not migrate. It waits until the Projection schema exists, then introspects. `PUBLIC_SCHEMA` is that `pj_YYYYMMDD_NN` schema. `POSTGRAPHILE_DATABASE_URL` comes from secret key `uri`. Keep `replicaCount: 1`. `QUERY_READ_ONLY=false` is the local-dev migrate switch and must not be set on a release.
 
 **redpanda**: the chart runs the cluster only. It does not take `INDEX_GENERATION` and does not create topics or schema subjects. Each event-lake release does that in a `pre-install,pre-upgrade` hook from its own `CFG_NETWORK` and `INDEX_GENERATION`, using `rpk` for the topics (1 partition, RF 3, speculative compacted) and that release's indexer image for `cfg-cli events schemas update -n -g`. `centrifuge-redpanda.name` stays `redpanda-bootstrap`, never `redpanda`: the upstream Kafka Service selects on `app.kubernetes.io/name: redpanda` + instance with no component label, so a pod named `redpanda` would join the Kafka, Schema Registry and Admin endpoints while it runs.
 
 ## Release engineering
 
-Environment promotion for the v4 stack (origination, handlers, and public-api image tags, `INDEX_GENERATION`, staging, then production) is [docs/API-V4-RELEASE.md](docs/API-V4-RELEASE.md). It is written for the developer shipping the change. A new generation does not change the Redpanda release. The workflow below only publishes chart versions.
+Environment promotion for the v4 stack (origination, handlers, and public-api image digests, `INDEX_GENERATION`, staging, then production) is [docs/API-V4-RELEASE.md](docs/API-V4-RELEASE.md). It is written for the developer shipping the change. A new generation does not change the Redpanda release. The workflow below only publishes chart versions.
 
 `.github/workflows/release.yml` on push to `main` (chart or release-script changes) or `workflow_dispatch`: bumps patch versions when chart templates change, fetches subchart `.tgz` into the runner workspace (not git), `helm package --dependency-update=false`, then `cr upload` / `cr index`. Infra-only changes do not bump; already-published versions are skipped. After a failed first publish, run **Actions → Release Charts → Run workflow** with `bump_version` so a new patch is actually uploaded. A published version is immutable.
 
