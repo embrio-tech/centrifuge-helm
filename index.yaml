@@ -1998,6 +1998,16 @@ entries:
   centrifuge-api-v4-activation:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2026-10-21T19:32:20.047171512Z"
+    description: Fenced one-shot SQL activation/compensation Job for API v4
+    digest: 2d56ea2f9ab1dd44807366e3923c0a667b5fa59cfa2839a652eec63e5a70eb32
+    name: centrifuge-api-v4-activation
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-activation-0.1.7/centrifuge-api-v4-activation-0.1.7.tgz
+    version: 0.1.7
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2026-10-21T16:48:57.625096727Z"
     description: Fenced one-shot SQL activation/compensation Job for API v4
     digest: 21894fb3be525560b8b998fa7bd39e5b1a7ac9a121031ac17b4fb1cba3883685
@@ -2088,6 +2098,16 @@ entries:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-database-0.1.1/centrifuge-api-v4-database-0.1.1.tgz
     version: 0.1.1
   centrifuge-api-v4-event-lake:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-10-21T19:32:24.00584529Z"
+    description: Centrifuge event-lake Producer (Envio indexer -> Redpanda). No CloudNative-PG.
+    digest: 42b9e6042349101aae71a3abcd350d7baeed43ddc6f9298ba257d73f542bd6c6
+    name: centrifuge-api-v4-event-lake
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-event-lake-0.2.9/centrifuge-api-v4-event-lake-0.2.9.tgz
+    version: 0.2.9
   - apiVersion: v2
     appVersion: 0.1.0
     created: "2026-10-16T19:31:36.671134993Z"
@@ -2251,6 +2271,16 @@ entries:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-event-lake-0.1.2/centrifuge-api-v4-event-lake-0.1.2.tgz
     version: 0.1.2
   centrifuge-api-v4-projection:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-10-21T19:32:24.568507455Z"
+    description: API v4 Projection (handlers only). No CloudNative-PG.
+    digest: 3bc25635cd2c35e610c136603de8532df078b3be5ae9847c1b14071dc4041036
+    name: centrifuge-api-v4-projection
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-projection-0.1.10/centrifuge-api-v4-projection-0.1.10.tgz
+    version: 0.1.10
   - apiVersion: v2
     appVersion: 0.1.0
     created: "2026-10-16T15:37:29.607288357Z"
@@ -2546,6 +2576,16 @@ entries:
   centrifuge-api-v4-query:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2026-10-21T19:32:29.567016417Z"
+    description: API v4 Query (read-only public-api). No CloudNative-PG and no migrations.
+    digest: 76e3de37690d2fc29dbae89261025c81daedae8a14bbc82d8bfde526efca193b
+    name: centrifuge-api-v4-query
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-query-0.1.10/centrifuge-api-v4-query-0.1.10.tgz
+    version: 0.1.10
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2026-10-16T19:28:01.00510153Z"
     description: API v4 Query (read-only public-api). No CloudNative-PG and no migrations.
     digest: 69f69286b5c9950e93874b3eac2b305f7b6c22b1626b8995cddbb150076b5b5f
@@ -2615,6 +2655,16 @@ entries:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-query-0.1.1/centrifuge-api-v4-query-0.1.1.tgz
     version: 0.1.1
   centrifuge-api-v4-routes:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-10-21T19:32:32.971351436Z"
+    description: Stable API v4 staging and production Services
+    digest: b1a75cd2a0669a647ea990bf27177b99b5f434d247d18de6be7c79e34bc90a73
+    name: centrifuge-api-v4-routes
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-routes-0.1.8/centrifuge-api-v4-routes-0.1.8.tgz
+    version: 0.1.8
   - apiVersion: v2
     appVersion: 0.1.0
     created: "2026-10-16T19:35:12.039079702Z"
@@ -3888,4 +3938,4 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/redpanda-0.1.2/redpanda-0.1.2.tgz
     version: 0.1.2
-generated: "2026-10-21T16:49:27.41144471Z"
+generated: "2026-10-21T19:32:47.929504371Z"
