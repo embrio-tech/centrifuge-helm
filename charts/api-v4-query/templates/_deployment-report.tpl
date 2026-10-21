@@ -29,9 +29,11 @@
 - name: REPORT_LOG_URL
   value: {{ printf "%s/applications/argo/cfg-api-v4-%s-%s" .root.Values.deploymentReport.argoExternalUrl .root.Values.environment .root.Values.id | quote }}
 {{- end }}
-{{- if and .root.Values.preview .root.Values.preview.host .root.Values.preview.network }}
+{{- $previewHost := include "centrifuge-api-v4-query.previewHost" .root | trim -}}
+{{- $previewNetwork := include "centrifuge-api-v4-query.previewNetwork" .root | trim -}}
+{{- if and $previewHost $previewNetwork .root.Values.id }}
 - name: REPORT_ENVIRONMENT_URL
-  value: {{ printf "https://%s/%s/%s" .root.Values.preview.host .root.Values.preview.network (trimPrefix "q-" .root.Values.id) | quote }}
+  value: {{ printf "https://%s/%s/%s" $previewHost $previewNetwork (trimPrefix "q-" .root.Values.id) | quote }}
 {{- end }}
 - name: GITHUB_APP_ID
   valueFrom:
