@@ -1998,6 +1998,16 @@ entries:
   centrifuge-api-v4-activation:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2026-10-21T16:48:57.625096727Z"
+    description: Fenced one-shot SQL activation/compensation Job for API v4
+    digest: 21894fb3be525560b8b998fa7bd39e5b1a7ac9a121031ac17b4fb1cba3883685
+    name: centrifuge-api-v4-activation
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-activation-0.1.6/centrifuge-api-v4-activation-0.1.6.tgz
+    version: 0.1.6
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2026-10-16T15:37:24.12883195Z"
     description: Fenced one-shot SQL activation/compensation Job for API v4
     digest: b8bf255301cd2f0268e147d6526c1e1185991f6325675d6b93c7d37740d8c342
@@ -3878,4 +3888,4 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/redpanda-0.1.2/redpanda-0.1.2.tgz
     version: 0.1.2
-generated: "2026-10-20T15:31:58.261808665Z"
+generated: "2026-10-21T16:49:27.41144471Z"
