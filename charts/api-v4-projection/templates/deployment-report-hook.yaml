@@ -5,28 +5,37 @@ metadata:
   name: {{ include "centrifuge-api-v4-projection.fullname" . }}-deployment-report
   labels:
     {{- include "centrifuge-api-v4-projection.labels" . | nindent 4 }}
+  annotations:
+    # PreSync wave -1: reporter scripts must exist before the in_progress PreSync Job.
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/sync-wave: "-1"
 data:
   github-transition-report.mjs: |
 {{- .Files.Get "files/github-transition-report.mjs" | nindent 4 }}
   github-transition-report-lib.mjs: |
 {{- .Files.Get "files/github-transition-report-lib.mjs" | nindent 4 }}
+{{- $root := . }}
+{{- range $item := list (dict "state" "in_progress" "hook" "PreSync" "suffix" "start") (dict "state" "success" "hook" "PostSync" "suffix" "success") (dict "state" "failure" "hook" "SyncFail" "suffix" "failure") }}
 ---
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "centrifuge-api-v4-projection.fullname" . }}-report-success
+  name: {{ include "centrifuge-api-v4-projection.fullname" $root }}-report-{{ $item.suffix }}
   labels:
-    {{- include "centrifuge-api-v4-projection.labels" . | nindent 4 }}
+    {{- include "centrifuge-api-v4-projection.labels" $root | nindent 4 }}
   annotations:
-    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook: {{ $item.hook }}
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    {{- if eq $item.suffix "start" }}
+    argocd.argoproj.io/sync-wave: "0"
+    {{- end }}
 spec:
   backoffLimit: 0
   activeDeadlineSeconds: 300
   template:
     metadata:
       labels:
-        {{- include "centrifuge-api-v4-projection.selectorLabels" . | nindent 8 }}
+        {{- include "centrifuge-api-v4-projection.selectorLabels" $root | nindent 8 }}
     spec:
       restartPolicy: Never
       automountServiceAccountToken: false
@@ -39,7 +48,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: report
-          image: "{{ .Values.deploymentReport.reporterImage.repository }}@{{ .Values.deploymentReport.reporterImage.digest }}"
+          image: "{{ $root.Values.deploymentReport.reporterImage.repository }}@{{ $root.Values.deploymentReport.reporterImage.digest }}"
           imagePullPolicy: IfNotPresent
           workingDir: /opt/report
           command: ["node", "github-transition-report.mjs"]
@@ -52,7 +61,7 @@ spec:
             requests: { cpu: 50m, memory: 128Mi }
             limits: { cpu: 500m, memory: 256Mi }
           env:
-            {{- include "centrifuge-api-v4-projection.deploymentReportEnv" (dict "root" . "state" "success") | nindent 12 }}
+            {{- include "centrifuge-api-v4-projection.deploymentReportEnv" (dict "root" $root "state" $item.state) | nindent 12 }}
           volumeMounts:
             - name: report-scripts
               mountPath: /opt/report
@@ -63,71 +72,12 @@ spec:
       volumes:
         - name: report-scripts
           configMap:
-            name: {{ include "centrifuge-api-v4-projection.fullname" . }}-deployment-report
+            name: {{ include "centrifuge-api-v4-projection.fullname" $root }}-deployment-report
         - name: github-key
           secret:
-            secretName: {{ .Values.deploymentReport.githubDeploymentsSecretName | quote }}
+            secretName: {{ $root.Values.deploymentReport.githubDeploymentsSecretName | quote }}
             items:
               - key: private-key.pem
                 path: private-key.pem
----
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: {{ include "centrifuge-api-v4-projection.fullname" . }}-report-failure
-  labels:
-    {{- include "centrifuge-api-v4-projection.labels" . | nindent 4 }}
-  annotations:
-    argocd.argoproj.io/hook: SyncFail
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
-spec:
-  backoffLimit: 0
-  activeDeadlineSeconds: 300
-  template:
-    metadata:
-      labels:
-        {{- include "centrifuge-api-v4-projection.selectorLabels" . | nindent 8 }}
-    spec:
-      restartPolicy: Never
-      automountServiceAccountToken: false
-      enableServiceLinks: false
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        seccompProfile:
-          type: RuntimeDefault
-      containers:
-        - name: report
-          image: "{{ .Values.deploymentReport.reporterImage.repository }}@{{ .Values.deploymentReport.reporterImage.digest }}"
-          imagePullPolicy: IfNotPresent
-          workingDir: /opt/report
-          command: ["node", "github-transition-report.mjs"]
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop: [ALL]
-          resources:
-            requests: { cpu: 50m, memory: 128Mi }
-            limits: { cpu: 500m, memory: 256Mi }
-          env:
-            {{- include "centrifuge-api-v4-projection.deploymentReportEnv" (dict "root" . "state" "failure") | nindent 12 }}
-          volumeMounts:
-            - name: report-scripts
-              mountPath: /opt/report
-              readOnly: true
-            - name: github-key
-              mountPath: /etc/github
-              readOnly: true
-      volumes:
-        - name: report-scripts
-          configMap:
-            name: {{ include "centrifuge-api-v4-projection.fullname" . }}-deployment-report
-        - name: github-key
-          secret:
-            secretName: {{ .Values.deploymentReport.githubDeploymentsSecretName | quote }}
-            items:
-              - key: private-key.pem
-                path: private-key.pem
+{{- end }}
 {{- end }}

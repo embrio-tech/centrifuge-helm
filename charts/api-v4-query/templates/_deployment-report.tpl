@@ -27,7 +27,11 @@
   value: {{ .root.Values.deploymentReport.chart.digest | quote }}
 {{- if .root.Values.deploymentReport.argoExternalUrl }}
 - name: REPORT_LOG_URL
-  value: {{ printf "%s/applications/argo/cfg-api/cfg-api-v4-%s-%s" .root.Values.deploymentReport.argoExternalUrl .root.Values.environment .root.Values.id | quote }}
+  value: {{ printf "%s/applications/argo/cfg-api-v4-%s-%s" .root.Values.deploymentReport.argoExternalUrl .root.Values.environment .root.Values.id | quote }}
+{{- end }}
+{{- if and .root.Values.preview .root.Values.preview.host .root.Values.preview.network }}
+- name: REPORT_ENVIRONMENT_URL
+  value: {{ printf "https://%s/%s/%s" .root.Values.preview.host .root.Values.preview.network (trimPrefix "q-" .root.Values.id) | quote }}
 {{- end }}
 - name: GITHUB_APP_ID
   valueFrom:

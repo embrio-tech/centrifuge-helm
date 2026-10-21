@@ -31,7 +31,7 @@
 {{- end }}
 {{- if .root.Values.deploymentReport.argoExternalUrl }}
 - name: REPORT_LOG_URL
-  value: {{ printf "%s/applications/argo/cfg-api/cfg-api-v4-routes-%s" .root.Values.deploymentReport.argoExternalUrl .root.Values.environment | quote }}
+  value: {{ printf "%s/applications/argo/cfg-api-v4-routes-%s" .root.Values.deploymentReport.argoExternalUrl .root.Values.environment | quote }}
 {{- end }}
 - name: GITHUB_APP_ID
   valueFrom:

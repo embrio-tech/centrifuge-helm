@@ -26,8 +26,11 @@
 - name: REPORT_CHART_DIGEST
   value: {{ .root.Values.deploymentReport.chart.digest | quote }}
 {{- if .root.Values.deploymentReport.argoExternalUrl }}
+{{- $argo := printf "%s/applications/argo/cfg-api-v4-%s-%s" .root.Values.deploymentReport.argoExternalUrl .root.Values.environment .root.Values.id }}
 - name: REPORT_LOG_URL
-  value: {{ printf "%s/applications/argo/cfg-api/cfg-api-v4-%s-%s" .root.Values.deploymentReport.argoExternalUrl .root.Values.environment .root.Values.id | quote }}
+  value: {{ $argo | quote }}
+- name: REPORT_ENVIRONMENT_URL
+  value: {{ $argo | quote }}
 {{- end }}
 - name: GITHUB_APP_ID
   valueFrom:

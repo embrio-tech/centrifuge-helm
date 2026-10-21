@@ -1,0 +1,43 @@
+{{- if and .Values.preview .Values.preview.host .Values.preview.network }}
+{{- $stamp := trimPrefix "q-" .Values.id }}
+{{- $path := printf "/%s/%s" .Values.preview.network $stamp }}
+{{- $middleware := printf "%s-preview-strip" (include "centrifuge-api-v4-query.fullname" .) }}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ $middleware }}
+  labels:
+    {{- include "centrifuge-api-v4-query.labels" . | nindent 4 }}
+spec:
+  stripPrefix:
+    prefixes:
+      - {{ $path | quote }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ printf "%s-preview" (include "centrifuge-api-v4-query.fullname" .) | trunc 63 | trimSuffix "-" }}
+  labels:
+    {{- include "centrifuge-api-v4-query.labels" . | nindent 4 }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: {{ printf "%s-%s@kubernetescrd" .Release.Namespace $middleware | quote }}
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - {{ .Values.preview.host | quote }}
+      secretName: {{ .Values.preview.tlsSecretName }}
+  rules:
+    - host: {{ .Values.preview.host | quote }}
+      http:
+        paths:
+          - path: {{ $path }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "centrifuge-api-v4-query.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}
+{{- end }}
