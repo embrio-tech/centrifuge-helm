@@ -13,6 +13,8 @@
   value: {{ if hasPrefix "main-" .root.Values.environment }}"true"{{ else }}"false"{{ end }}
 - name: REPORT_OPERATION_ID
   value: {{ .root.Values.operation.operationId | quote }}
+- name: REPORT_PROJECTION_ID
+  value: {{ .root.Values.operation.desiredProjection | quote }}
 - name: REPORT_ACTIVATION_COMMAND
   value: {{ .root.Values.operation.command | quote }}
 - name: REPORT_IMAGE_DIGEST
@@ -27,7 +29,7 @@
 {{- end }}
 {{- if .root.Values.deploymentReport.argoExternalUrl }}
 - name: REPORT_LOG_URL
-  value: {{ printf "%s/applications/argo/cfg-api/cfg-api-v4-activation-%s" .root.Values.deploymentReport.argoExternalUrl .root.Values.environment | quote }}
+  value: {{ printf "%s/applications/argo/cfg-api/cfg-api-v4-routes-%s" .root.Values.deploymentReport.argoExternalUrl .root.Values.environment | quote }}
 {{- end }}
 - name: GITHUB_APP_ID
   valueFrom:

@@ -37,3 +37,24 @@ for values in "${values_files[@]}"; do
         ${skip_kinds:+-skip "$skip_kinds"}
   echo "::endgroup::"
 done
+
+# The routes Application orders this chart by sync wave. A missing wave, a
+# SyncFail reporter, or a log URL that still names the old Application ships
+# the wrong order.
+if [ "$1" = "api-v4-activation" ]; then
+  rendered="$(helm template lint-api-v4-activation "$chart" -f "$chart/ci/report-values.yaml" --kube-version "$kube_version")"
+  fail=0
+  count() { grep -c -F "$1" <<<"$rendered" || true; }
+  [ "$(count 'argocd.argoproj.io/sync-wave: "-2"')" = 1 ] || { echo "expected one wave -2 ConfigMap" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/sync-wave: "-1"')" = 1 ] || { echo "expected one wave -1 activation Job" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/sync-wave: "0"')" = 1 ] || { echo "expected one wave 0 success reporter" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/hook: Sync')" = 2 ] || { echo "expected activation Job and success reporter Sync hooks" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/hook: PostSync')" = 0 ] || { echo "activation chart must not use PostSync reporters" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/hook: SyncFail')" = 0 ] || { echo "activation chart must not render a SyncFail reporter" >&2; fail=1; }
+  [ "$(count 'report-failure')" = 0 ] || { echo "activation chart must not render report-failure" >&2; fail=1; }
+  grep -q 'cfg-api-v4-routes-test-eu' <<<"$rendered" || { echo "log URL must name the routes Application" >&2; fail=1; }
+  grep -q 'cfg-api-v4-activation-test-eu' <<<"$rendered" && { echo "log URL must not name the retired activation Application" >&2; fail=1; }
+  grep -q 'name: REPORT_PROJECTION_ID' <<<"$rendered" || { echo "success reporter must set REPORT_PROJECTION_ID" >&2; fail=1; }
+  grep -q 'value: "pj-20261014-01"' <<<"$rendered" || { echo "REPORT_PROJECTION_ID must match desiredProjection" >&2; fail=1; }
+  [ "$fail" = 0 ] || exit 1
+fi

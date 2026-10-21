@@ -153,7 +153,9 @@ readiness is the completion signal for that Projection.
 Use **Promote** in api-v4-gitops (`docs/RUNBOOK.md`). Production moves the
 staging Query and SQL projection. It does not copy hashes between files.
 
-Before syncing activation and routes:
+Merging the promotion pull request syncs `cfg-api-v4-routes-<env>`. That Application runs the activation Job before it applies route resources.
+
+Before that sync:
 
 1. Confirm the images still exist. A new Producer's hook creates topics on sync.
 2. Confirm the Projection's generation equals its Producer.
@@ -164,8 +166,10 @@ empty schema. Previous generations and schemas stay until retirement.
 
 ## Rollback
 
-Rollback is a route and activation change back to the previous Projection and
-Query (`docs/RUNBOOK.md`). It does not restore a config hash.
+Rollback is a routes and `activation.yaml` change back to the previous Projection
+and Query (`docs/RUNBOOK.md`). Merging the promotion pull request syncs
+`cfg-api-v4-routes-<env>`, which runs compensate before route resources. It does
+not restore a config hash.
 
 Stop the current origination writer before starting the previous generation
 again. Handlers replay the selected schema, so public-api can serve partial

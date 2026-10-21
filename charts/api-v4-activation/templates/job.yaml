@@ -10,8 +10,11 @@ metadata:
     # A Sync hook is not part of the desired state, so Argo CD never reports the
     # Job as missing or recreates it on its own. A repeated sync re-runs it; the
     # completed receipt for operationId in cfg_release turns that into a no-op.
+    # Wave -1 is after the report ConfigMap (wave -2) and before route resources
+    # (wave 0). A failed hook stops the sync, so those resources stay as they were.
     argocd.argoproj.io/hook: Sync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   backoffLimit: 0
   activeDeadlineSeconds: {{ .Values.activeDeadlineSeconds }}

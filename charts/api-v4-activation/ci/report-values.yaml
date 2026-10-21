@@ -1,0 +1,14 @@
+environment: test-eu
+activatorSecretName: cfg-api-v4-database-public-test-eu-postgres-activator
+operation:
+  command: activate
+  operationId: op-20261013-01
+  fence: "1"
+  expectedOldProjection: pj-20261013-01
+  desiredProjection: pj-20261014-01
+image:
+  digest: sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+deploymentReport:
+  enabled: true
+  githubDeploymentsSecretName: cfg-api-v4-github-deployments
+  argoExternalUrl: https://argo.example
