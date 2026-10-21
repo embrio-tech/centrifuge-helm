@@ -83,6 +83,23 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 
+# When the management-cluster ApplicationSet has not passed preview yet, the chart
+# still renders preview Ingress from environment id. Keep in sync with api-v4-gitops
+# environments/*/config.yaml hosts.direct and hosts.directTlsSecretName.
+directPreviewByEnvironment:
+  test-eu:
+    host: cfg.embrio.tech
+    tlsSecretName: cfg-embrio-tech-tls
+  main-eu:
+    host: cfg.embrio.tech
+    tlsSecretName: cfg-embrio-tech-tls
+  test-us:
+    host: cfg-us.embrio.tech
+    tlsSecretName: cfg-us-embrio-tech-tls
+  main-us:
+    host: cfg-us.embrio.tech
+    tlsSecretName: cfg-us-embrio-tech-tls
+
 global:
   env:
     NODE_ENV: production

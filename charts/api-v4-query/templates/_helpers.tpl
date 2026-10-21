@@ -44,6 +44,38 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 Env vars the chart derives from the object identity. QUERY_READ_ONLY=false is the
 public-api local-dev switch that runs migrations, so a release must never set it.
 */}}
+{{/*
+Preview host, TLS secret, and URL path segment (main|test). ApplicationSet should
+pass preview explicitly; directPreviewByEnvironment is the fallback.
+*/}}
+{{- define "centrifuge-api-v4-query.previewHost" -}}
+{{- if and .Values.preview .Values.preview.host -}}
+{{- .Values.preview.host -}}
+{{- else if .Values.environment -}}
+{{- with index .Values.directPreviewByEnvironment .Values.environment -}}
+{{- .host -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "centrifuge-api-v4-query.previewTlsSecret" -}}
+{{- if and .Values.preview .Values.preview.tlsSecretName -}}
+{{- .Values.preview.tlsSecretName -}}
+{{- else if .Values.environment -}}
+{{- with index .Values.directPreviewByEnvironment .Values.environment -}}
+{{- .tlsSecretName -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "centrifuge-api-v4-query.previewNetwork" -}}
+{{- if and .Values.preview .Values.preview.network -}}
+{{- .Values.preview.network -}}
+{{- else if .Values.environment -}}
+{{- index (splitList "-" .Values.environment) 0 -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "centrifuge-api-v4-query.validate" -}}
 {{- $reserved := list "POSTGRAPHILE_DATABASE_URL" "PUBLIC_SCHEMA" "CFG_NETWORK" "QUERY_ID" "PROJECTION_ID" "QUERY_READ_ONLY" }}
 {{- range $key, $_ := .Values.global.env }}
