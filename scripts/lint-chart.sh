@@ -38,23 +38,73 @@ for values in "${values_files[@]}"; do
   echo "::endgroup::"
 done
 
-# The routes Application orders this chart by sync wave. A missing wave, a
-# SyncFail reporter, or a log URL that still names the old Application ships
-# the wrong order.
+# The routes Application orders this chart by sync wave. The in_progress
+# reporter is wave -2, after the ConfigMap and before the activation Job.
 if [ "$1" = "api-v4-activation" ]; then
   rendered="$(helm template lint-api-v4-activation "$chart" -f "$chart/ci/report-values.yaml" --kube-version "$kube_version")"
   fail=0
   count() { grep -c -F "$1" <<<"$rendered" || true; }
-  [ "$(count 'argocd.argoproj.io/sync-wave: "-2"')" = 1 ] || { echo "expected one wave -2 ConfigMap" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/sync-wave: "-3"')" = 1 ] || { echo "expected one wave -3 ConfigMap" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/sync-wave: "-2"')" = 1 ] || { echo "expected one wave -2 in_progress reporter" >&2; fail=1; }
   [ "$(count 'argocd.argoproj.io/sync-wave: "-1"')" = 1 ] || { echo "expected one wave -1 activation Job" >&2; fail=1; }
   [ "$(count 'argocd.argoproj.io/sync-wave: "0"')" = 1 ] || { echo "expected one wave 0 success reporter" >&2; fail=1; }
-  [ "$(count 'argocd.argoproj.io/hook: Sync')" = 2 ] || { echo "expected activation Job and success reporter Sync hooks" >&2; fail=1; }
+  [ "$(grep -c -E 'argocd.argoproj.io/hook: Sync$' <<<"$rendered" || true)" = 3 ] || { echo "expected three Sync hooks" >&2; fail=1; }
   [ "$(count 'argocd.argoproj.io/hook: PostSync')" = 0 ] || { echo "activation chart must not use PostSync reporters" >&2; fail=1; }
-  [ "$(count 'argocd.argoproj.io/hook: SyncFail')" = 0 ] || { echo "activation chart must not render a SyncFail reporter" >&2; fail=1; }
-  [ "$(count 'report-failure')" = 0 ] || { echo "activation chart must not render report-failure" >&2; fail=1; }
-  grep -q 'cfg-api-v4-routes-test-eu' <<<"$rendered" || { echo "log URL must name the routes Application" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/hook: SyncFail')" = 1 ] || { echo "expected one SyncFail reporter" >&2; fail=1; }
+  [ "$(count 'report-failure')" = 1 ] || { echo "expected report-failure" >&2; fail=1; }
+  [ "$(count 'value: "in_progress"')" = 1 ] || { echo "expected one in_progress report" >&2; fail=1; }
+  grep -q 'https://argocd.cloud.embrio.tech/applications/argo/cfg-api-v4-routes-test-eu' <<<"$rendered" || { echo "log URL must name the routes Application" >&2; fail=1; }
+  grep -q '/applications/argo/cfg-api/' <<<"$rendered" && { echo "log URL must not include the cfg-api path segment" >&2; fail=1; }
   grep -q 'cfg-api-v4-activation-test-eu' <<<"$rendered" && { echo "log URL must not name the retired activation Application" >&2; fail=1; }
   grep -q 'name: REPORT_PROJECTION_ID' <<<"$rendered" || { echo "success reporter must set REPORT_PROJECTION_ID" >&2; fail=1; }
   grep -q 'value: "pj-20261014-01"' <<<"$rendered" || { echo "REPORT_PROJECTION_ID must match desiredProjection" >&2; fail=1; }
+  [ "$fail" = 0 ] || exit 1
+fi
+
+if [ "$1" = "api-v4-projection" ]; then
+  rendered="$(helm template lint-api-v4-projection "$chart" -f "$chart/ci/report-values.yaml" --kube-version "$kube_version")"
+  fail=0
+  count() { grep -c -F "$1" <<<"$rendered" || true; }
+  [ "$(count 'argocd.argoproj.io/hook: PreSync')" = 2 ] || { echo "expected PreSync ConfigMap and in_progress reporter" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/sync-wave: "-1"')" = 1 ] || { echo "expected one PreSync wave -1 report ConfigMap" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/hook: PostSync')" = 1 ] || { echo "expected one PostSync reporter" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/hook: SyncFail')" = 1 ] || { echo "expected one SyncFail reporter" >&2; fail=1; }
+  argo='https://argocd.cloud.embrio.tech/applications/argo/cfg-api-v4-test-eu-pj-20261021-01'
+  [ "$(count "value: \"${argo}\"")" = 6 ] || { echo "projection Argo URL must be log and environment URL on all three statuses" >&2; fail=1; }
+  grep -q '/applications/argo/cfg-api/' <<<"$rendered" && { echo "log URL must not include the cfg-api path segment" >&2; fail=1; }
+  [ "$fail" = 0 ] || exit 1
+fi
+
+if [ "$1" = "api-v4-query" ]; then
+  rendered="$(helm template lint-api-v4-query "$chart" -f "$chart/ci/report-values.yaml" --kube-version "$kube_version")"
+  fail=0
+  count() { grep -c -F "$1" <<<"$rendered" || true; }
+  [ "$(count 'argocd.argoproj.io/hook: PreSync')" = 2 ] || { echo "expected PreSync ConfigMap and in_progress reporter" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/sync-wave: "-1"')" = 1 ] || { echo "expected one PreSync wave -1 report ConfigMap" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/hook: PostSync')" = 1 ] || { echo "expected one PostSync reporter" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/hook: SyncFail')" = 1 ] || { echo "expected one SyncFail reporter" >&2; fail=1; }
+  [ "$(count 'value: "https://cfg.embrio.tech/test/20261021-01"')" = 3 ] || { echo "preview URL must be environment_url on all three statuses" >&2; fail=1; }
+  [ "$(count 'value: "https://argocd.cloud.embrio.tech/applications/argo/cfg-api-v4-test-eu-q-20261021-01"')" = 3 ] || { echo "query Argo URL must be log_url on all three statuses" >&2; fail=1; }
+  grep -q '/applications/argo/cfg-api/' <<<"$rendered" && { echo "log URL must not include the cfg-api path segment" >&2; fail=1; }
+  grep -q 'path: /test/20261021-01' <<<"$rendered" || { echo "preview Ingress path missing" >&2; fail=1; }
+  grep -q 'stripPrefix:' <<<"$rendered" || { echo "preview stripPrefix missing" >&2; fail=1; }
+  grep -q -- '- "/test/20261021-01"' <<<"$rendered" || { echo "stripPrefix must remove the preview path" >&2; fail=1; }
+  grep -q 'type: ClusterIP' <<<"$rendered" || { echo "query Service must stay ClusterIP" >&2; fail=1; }
+  [ "$fail" = 0 ] || exit 1
+fi
+
+if [ "$1" = "api-v4-event-lake" ]; then
+  rendered="$(helm template lint-api-v4-event-lake "$chart" -f "$chart/ci/report-values.yaml" --kube-version "$kube_version")"
+  fail=0
+  count() { grep -c -F "$1" <<<"$rendered" || true; }
+  [ "$(count 'argocd.argoproj.io/hook: PreSync')" = 2 ] || { echo "expected PreSync ConfigMap and in_progress reporter" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/sync-wave: "-1"')" = 1 ] || { echo "expected one PreSync wave -1 report ConfigMap" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/hook: PostSync')" = 1 ] || { echo "expected one PostSync reporter" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/hook: SyncFail')" = 1 ] || { echo "expected one SyncFail reporter" >&2; fail=1; }
+  [ "$(count 'value: "test-eu-pr-20261013-01"')" = 3 ] || { echo "producer GitHub environment must be environment-id" >&2; fail=1; }
+  [ "$(count 'value: "api-v4:indexing"')" = 3 ] || { echo "producer task must be api-v4:indexing" >&2; fail=1; }
+  argo='https://argocd.cloud.embrio.tech/applications/argo/cfg-api-v4-test-eu-pr-20261013-01'
+  [ "$(count "value: \"${argo}\"")" = 6 ] || { echo "producer Argo URL must be log and environment URL on all three statuses" >&2; fail=1; }
+  grep -q '/applications/argo/cfg-api/' <<<"$rendered" && { echo "log URL must not include the cfg-api path segment" >&2; fail=1; }
   [ "$fail" = 0 ] || exit 1
 fi

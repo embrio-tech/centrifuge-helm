@@ -102,6 +102,48 @@ export function deploymentMatches(deployment, task, fingerprint) {
   return parsed?.desiredStateFingerprint === fingerprint;
 }
 
+const REPORT_STATES = new Set(["success", "failure", "in_progress"]);
+
+/**
+ * GitHub deployment status state this reporter is allowed to post.
+ *
+ * @param {string} state
+ */
+export function assertReportState(state) {
+  if (!REPORT_STATES.has(state)) {
+    throw new Error(`invalid REPORT_STATE: ${state}`);
+  }
+}
+
+/**
+ * Short status line. GitHub rejects a description longer than 140 characters.
+ *
+ * @param {string} transition
+ * @param {string} component
+ * @param {string} state
+ */
+export function statusDescription(transition, component, state) {
+  const description = `${transition} ${component} ${state}`;
+  if (description.length > 140) {
+    throw new Error(`status description exceeds 140 characters`);
+  }
+  return description;
+}
+
+/**
+ * True when this state and description were already posted on the deployment.
+ *
+ * @param {Array<{ state?: string, description?: string }> | null | undefined} statuses
+ * @param {string} state
+ * @param {string} description
+ */
+export function statusAlreadyPosted(statuses, state, description) {
+  return (
+    Array.isArray(statuses) &&
+    statuses.some((item) => item.state === state && item.description === description)
+  );
+}
+
 export function redactSecrets(text) {
   return text
     .replace(/Bearer [^\s]+/gi, "Bearer [redacted]")

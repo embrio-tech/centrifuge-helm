@@ -1,0 +1,22 @@
+environment: test-eu
+network: testnet
+id: q-20261021-01
+projectionId: pj-20261021-01
+schema: pj_20261021_01
+databaseSecretName: cfg-api-v4-database-public-test-eu-postgres-query
+image:
+  digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
+  displayTag: sha-example
+preview:
+  host: cfg.embrio.tech
+  tlsSecretName: cfg-embrio-tech-tls
+  network: test
+deploymentReport:
+  enabled: true
+  githubDeploymentsSecretName: cfg-api-v4-github-deployments
+  argoExternalUrl: https://argocd.cloud.embrio.tech
+  sourceCommit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  chart:
+    name: centrifuge-api-v4-query
+    version: 0.0.0
+    digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb

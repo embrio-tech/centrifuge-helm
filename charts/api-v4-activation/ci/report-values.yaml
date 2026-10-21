@@ -11,4 +11,4 @@ image:
 deploymentReport:
   enabled: true
   githubDeploymentsSecretName: cfg-api-v4-github-deployments
-  argoExternalUrl: https://argo.example
+  argoExternalUrl: https://argocd.cloud.embrio.tech

@@ -8,11 +8,14 @@ import {
   API,
   OWNER,
   REPO,
+  assertReportState,
   buildPayloadFromEnv,
   deploymentMatches,
   isTransientGitHubError,
   redactSecrets,
   signAppJwt,
+  statusAlreadyPosted,
+  statusDescription,
 } from "./github-transition-report-lib.mjs";
 
 function log(level, message) {
@@ -68,9 +71,7 @@ async function installationToken(appId, installationId, privateKeyPem) {
 
 async function main() {
   const state = requiredEnv("REPORT_STATE");
-  if (state !== "success" && state !== "failure") {
-    throw new Error(`invalid REPORT_STATE: ${state}`);
-  }
+  assertReportState(state);
   const task = requiredEnv("REPORT_TASK");
   const payload = buildPayloadFromEnv(process.env);
   const environment = payload.environment;
@@ -114,14 +115,13 @@ async function main() {
 
   const logUrl = optionalEnv("REPORT_LOG_URL");
   const environmentUrl = optionalEnv("REPORT_ENVIRONMENT_URL");
-  const description = `${payload.transition} ${payload.component} ${state}`;
+  const description = statusDescription(payload.transition, payload.component, state);
 
   const statuses = await ghFetch(
     `/repos/${OWNER}/${REPO}/deployments/${deployment.id}/statuses?per_page=5`,
     { token },
   );
-  const duplicate = Array.isArray(statuses)
-    && statuses.some((item) => item.state === state && item.description === description);
+  const duplicate = statusAlreadyPosted(statuses, state, description);
   if (!duplicate) {
     await ghFetch(`/repos/${OWNER}/${REPO}/deployments/${deployment.id}/statuses`, {
       method: "POST",

@@ -3,10 +3,13 @@ import crypto from "node:crypto";
 import { generateKeyPairSync } from "node:crypto";
 import test from "node:test";
 import {
+  assertReportState,
   buildPayloadFromEnv,
   deploymentMatches,
   redactSecrets,
   signAppJwt,
+  statusAlreadyPosted,
+  statusDescription,
 } from "./github-transition-report-lib.mjs";
 
 const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -54,6 +57,21 @@ test("deployment correlation requires exact task and fingerprint", () => {
     deploymentMatches({ task: "api-v4:staging-ready", payload: { desiredStateFingerprint: fingerprint } }, "api-v4:routes", fingerprint),
     false,
   );
+});
+
+test("in_progress is a report state and a repeat description is not posted again", () => {
+  assertReportState("in_progress");
+  const description = statusDescription("staging-ready", "projection", "in_progress");
+  assert.equal(description, "staging-ready projection in_progress");
+  assert.ok(description.length <= 140);
+  const statuses = [{ state: "in_progress", description }];
+  assert.equal(statusAlreadyPosted(statuses, "in_progress", description), true);
+  assert.equal(statusAlreadyPosted(statuses, "success", description), false);
+  assert.equal(
+    statusAlreadyPosted(statuses, "in_progress", "staging-ready projection success"),
+    false,
+  );
+  assert.throws(() => assertReportState("queued"), /invalid REPORT_STATE: queued/);
 });
 
 test("redactSecrets strips bearer tokens and JWTs", () => {
