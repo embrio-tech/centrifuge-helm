@@ -89,16 +89,16 @@ affinity: {}
 directPreviewByEnvironment:
   test-eu:
     host: cfg.embrio.tech
-    tlsSecretName: cfg-embrio-tech-tls
+    tlsSecretName: cfg-api-v4-preview-tls
   main-eu:
     host: cfg.embrio.tech
-    tlsSecretName: cfg-embrio-tech-tls
+    tlsSecretName: cfg-api-v4-preview-tls
   test-us:
     host: cfg-us.embrio.tech
-    tlsSecretName: cfg-us-embrio-tech-tls
+    tlsSecretName: cfg-api-v4-preview-us-tls
   main-us:
     host: cfg-us.embrio.tech
-    tlsSecretName: cfg-us-embrio-tech-tls
+    tlsSecretName: cfg-api-v4-preview-us-tls
 
 global:
   env:
