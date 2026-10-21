@@ -9,7 +9,7 @@ image:
   displayTag: sha-example
 preview:
   host: cfg.embrio.tech
-  tlsSecretName: cfg-embrio-tech-tls
+  tlsSecretName: cfg-api-v4-preview-tls
   network: test
 deploymentReport:
   enabled: true
