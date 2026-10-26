@@ -2100,6 +2100,16 @@ entries:
   centrifuge-api-v4-event-lake:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2026-10-26T08:55:54.350039208Z"
+    description: Centrifuge event-lake Producer (Envio indexer -> Redpanda). No CloudNative-PG.
+    digest: ca4057072ab036f067bb9bd35065bb281d3441a05e1bc16ea2106ee0ee775e9c
+    name: centrifuge-api-v4-event-lake
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-event-lake-0.2.10/centrifuge-api-v4-event-lake-0.2.10.tgz
+    version: 0.2.10
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2026-10-21T19:32:24.00584529Z"
     description: Centrifuge event-lake Producer (Envio indexer -> Redpanda). No CloudNative-PG.
     digest: 42b9e6042349101aae71a3abcd350d7baeed43ddc6f9298ba257d73f542bd6c6
@@ -3958,4 +3968,4 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/redpanda-0.1.2/redpanda-0.1.2.tgz
     version: 0.1.2
-generated: "2026-10-21T20:19:50.489042904Z"
+generated: "2026-10-26T08:56:20.154301233Z"
