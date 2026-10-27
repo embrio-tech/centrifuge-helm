@@ -20,6 +20,14 @@ imagePullSecrets: []
 replicaCount: 1
 # Kafka replay before /ready can exceed one hour on a full resync.
 progressDeadlineSeconds: 21600
+producerReadyGate:
+  enabled: true
+  # The Projection does not start until the Producer reaches every selected chain head.
+  activeDeadlineSeconds: 21600
+  pollIntervalSeconds: 5
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { cpu: 100m, memory: 128Mi }
 deploymentReport:
   enabled: false
   githubDeploymentsSecretName: ""
