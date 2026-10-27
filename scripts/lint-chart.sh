@@ -65,10 +65,12 @@ if [ "$1" = "api-v4-projection" ]; then
   rendered="$(helm template lint-api-v4-projection "$chart" -f "$chart/ci/report-values.yaml" --kube-version "$kube_version")"
   fail=0
   count() { grep -c -F "$1" <<<"$rendered" || true; }
-  [ "$(count 'argocd.argoproj.io/hook: PreSync')" = 2 ] || { echo "expected PreSync ConfigMap and in_progress reporter" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/hook: PreSync')" = 3 ] || { echo "expected Producer gate, report ConfigMap, and in_progress reporter" >&2; fail=1; }
   [ "$(count 'argocd.argoproj.io/sync-wave: "-1"')" = 1 ] || { echo "expected one PreSync wave -1 report ConfigMap" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/sync-wave: "1"')" = 1 ] || { echo "expected one PreSync wave 1 Producer gate" >&2; fail=1; }
   [ "$(count 'argocd.argoproj.io/hook: PostSync')" = 1 ] || { echo "expected one PostSync reporter" >&2; fail=1; }
   [ "$(count 'argocd.argoproj.io/hook: SyncFail')" = 1 ] || { echo "expected one SyncFail reporter" >&2; fail=1; }
+  [ "$(count 'value: "http://cfg-api-v4-test-eu-pr-20261021-01-indexer:8080/ready"')" = 1 ] || { echo "Producer gate URL must name the Projection Producer" >&2; fail=1; }
   argo='https://argocd.cloud.embrio.tech/applications/argo/cfg-api-v4-test-eu-pj-20261021-01'
   [ "$(count "value: \"${argo}\"")" = 6 ] || { echo "projection Argo URL must be log and environment URL on all three statuses" >&2; fail=1; }
   grep -q '/applications/argo/cfg-api/' <<<"$rendered" && { echo "log URL must not include the cfg-api path segment" >&2; fail=1; }

@@ -131,9 +131,10 @@ still locked.
 Merge the gitops pull request. Object Applications auto-sync. The staging
 hostname stays on the current `stagingQuery` until **Adopt staging**.
 
-For a new Producer, sync origination first and wait for `/ready` before
-treating the Projection as caught up. Handlers can follow a topic that is
-still growing. Every handlers restart truncates its schema and replays.
+The Projection chart uses a PreSync Job to wait for its Producer `/ready`
+endpoint. Argo CD does not start the Projection Deployment before the Producer
+reaches every selected chain head. Every handlers restart truncates its schema
+and replays.
 
 Verify the workload, not only git:
 
@@ -141,7 +142,8 @@ Verify the workload, not only git:
 2. The running images match the pinned digests.
 3. Origination has the Producer's `INDEX_GENERATION`.
 4. Origination `/ready` is 200. `/health` turns 200 before catch-up finishes.
-5. Handlers `/ready` is 200. `/ready` stays 503 until replay finishes.
+5. Handlers `/ready` is 200. `/ready` stays 503 until replay finishes and live
+   Kafka lag is zero.
 6. Public-api `/health` is 200.
 7. Run the change-specific GraphQL or projection checks.
 
