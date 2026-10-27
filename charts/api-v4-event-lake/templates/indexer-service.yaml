@@ -7,6 +7,11 @@ metadata:
     {{- include "centrifuge-api-v4-event-lake.indexer.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.indexer.service.type }}
+  # The Projection gate polls /health before the indexer is Ready (origination
+  # still catching up), so the endpoint must exist while the Pod is not ready.
+  # The indexer has no other in-cluster consumer; the Pod is never removed from
+  # the endpoints by readiness.
+  publishNotReadyAddresses: true
   ports:
     - port: {{ .Values.indexer.service.port }}
       targetPort: http

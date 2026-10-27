@@ -1,21 +1,21 @@
-{{- if .Values.producerReadyGate.enabled }}
+{{- if .Values.projectionHealthGate.enabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "centrifuge-api-v4-projection.fullname" . }}-wait-producer
+  name: {{ include "centrifuge-api-v4-query.fullname" . }}-wait-projection
   labels:
-    {{- include "centrifuge-api-v4-projection.labels" . | nindent 4 }}
+    {{- include "centrifuge-api-v4-query.labels" . | nindent 4 }}
   annotations:
     argocd.argoproj.io/hook: PreSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
     argocd.argoproj.io/sync-wave: "1"
 spec:
   backoffLimit: 0
-  activeDeadlineSeconds: {{ .Values.producerReadyGate.activeDeadlineSeconds }}
+  activeDeadlineSeconds: {{ .Values.projectionHealthGate.activeDeadlineSeconds }}
   template:
     metadata:
       labels:
-        {{- include "centrifuge-api-v4-projection.selectorLabels" . | nindent 8 }}
+        {{- include "centrifuge-api-v4-query.hookPodLabels" . | nindent 8 }}
     spec:
       restartPolicy: Never
       automountServiceAccountToken: false
@@ -27,13 +27,18 @@ spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
-        - name: producer-ready
+        - name: projection-health
           image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["node", "-e"]
           args:
             - |
-              const url = process.env.PRODUCER_READY_URL;
+              // Projection /health turns 200 once the handlers process is up,
+              // before Kafka replay finishes. public-api then waits for the
+              // Projection schema before it serves, so waiting on health (not
+              // /ready) serves the preview as soon as the schema exists instead
+              // of after a full replay.
+              const url = process.env.PROJECTION_HEALTH_URL;
               const interval = Number(process.env.POLL_INTERVAL_SECONDS) * 1000;
               const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
               async function main() {
@@ -41,12 +46,12 @@ spec:
                   try {
                     const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
                     if (response.ok) {
-                      console.log(`Producer is ready at ${url}`);
+                      console.log(`Projection is healthy at ${url}`);
                       return;
                     }
-                    console.log(`Producer readiness returned ${response.status}`);
+                    console.log(`Projection health returned ${response.status}`);
                   } catch (error) {
-                    console.log(`Producer readiness request failed: ${error.message}`);
+                    console.log(`Projection health request failed: ${error.message}`);
                   }
                   await wait(interval);
                 }
@@ -58,10 +63,10 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           resources:
-            {{- toYaml .Values.producerReadyGate.resources | nindent 12 }}
+            {{- toYaml .Values.projectionHealthGate.resources | nindent 12 }}
           env:
-            - name: PRODUCER_READY_URL
-              value: {{ printf "http://cfg-api-v4-%s-%s-indexer:8080/ready" .Values.environment .Values.producerId | quote }}
+            - name: PROJECTION_HEALTH_URL
+              value: {{ printf "http://cfg-api-v4-%s-%s:3001/health" .Values.environment .Values.projectionId | quote }}
             - name: POLL_INTERVAL_SECONDS
-              value: {{ .Values.producerReadyGate.pollIntervalSeconds | quote }}
+              value: {{ .Values.projectionHealthGate.pollIntervalSeconds | quote }}
 {{- end }}

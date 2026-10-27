@@ -131,10 +131,16 @@ still locked.
 Merge the gitops pull request. Object Applications auto-sync. The staging
 hostname stays on the current `stagingQuery` until **Adopt staging**.
 
-The Projection chart uses a PreSync Job to wait for its Producer `/ready`
-endpoint. Argo CD does not start the Projection Deployment before the Producer
-reaches every selected chain head. Every handlers restart truncates its schema
-and replays.
+The Projection chart uses a PreSync Job to wait for its Producer `/health`
+endpoint, so the Projection Deployment starts as soon as origination is up
+instead of after every selected chain reaches head. The Query chart uses the
+same PreSync gate against its Projection `/health`, so the preview is served
+while handlers still replay. Every handlers restart truncates its schema and
+replays.
+
+The staging-ready report is not weakened: for a new Projection a PostSync Job
+holds the success report until the Producer `/ready`, so **Adopt staging** still
+waits for origination to finish indexing.
 
 Verify the workload, not only git:
 
@@ -147,8 +153,9 @@ Verify the workload, not only git:
 6. Public-api `/health` is 200.
 7. Run the change-specific GraphQL or projection checks.
 
-Public-api can serve a schema before handlers finish replay. Handlers
-readiness is the completion signal for that Projection.
+Public-api can serve a schema before handlers finish replay. Handlers readiness
+is the completion signal for that Projection, and the gate object's Argo health
+still requires it before **Adopt staging** reports success.
 
 ## 5. Promote to production
 

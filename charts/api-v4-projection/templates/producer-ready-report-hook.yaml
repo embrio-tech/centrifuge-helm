@@ -1,0 +1,87 @@
+{{- if and .Values.deploymentReport.enabled .Values.producerReadyReportGate.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "centrifuge-api-v4-projection.fullname" . }}-report-wait-producer
+  labels:
+    {{- include "centrifuge-api-v4-projection.labels" . | nindent 4 }}
+  annotations:
+    # PostSync wave 0, before the success reporter at wave 1. Only the staging
+    # gate object renders this. A new Projection starts on Producer /health, so
+    # its readiness alone no longer implies the Producer finished indexing; this
+    # keeps the staging-ready report behind Producer /ready. The Projection's own
+    # readiness is an Argo health condition before PostSync, and is re-checked
+    # here because the Producer wait can be long.
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ .Values.producerReadyReportGate.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "centrifuge-api-v4-projection.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: producer-ready
+          image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["node", "-e"]
+          args:
+            - |
+              const producer = process.env.PRODUCER_READY_URL;
+              const projection = process.env.PROJECTION_READY_URL;
+              const interval = Number(process.env.POLL_INTERVAL_SECONDS) * 1000;
+              const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+              async function ok(url) {
+                try {
+                  const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+                  if (!response.ok) {
+                    console.log(`${url} returned ${response.status}`);
+                    return false;
+                  }
+                  return true;
+                } catch (error) {
+                  console.log(`${url} request failed: ${error.message}`);
+                  return false;
+                }
+              }
+              async function main() {
+                for (;;) {
+                  // Producer first: the Projection may legitimately be unready
+                  // while origination is still catching up.
+                  if (await ok(producer)) {
+                    if (await ok(projection)) {
+                      console.log("Producer and Projection are ready");
+                      return;
+                    }
+                  }
+                  await wait(interval);
+                }
+              }
+              main().catch((error) => {
+                console.error(error);
+                process.exit(1);
+              });
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.producerReadyReportGate.resources | nindent 12 }}
+          env:
+            - name: PRODUCER_READY_URL
+              value: {{ printf "http://cfg-api-v4-%s-%s-indexer:8080/ready" .Values.environment .Values.producerId | quote }}
+            - name: PROJECTION_READY_URL
+              value: {{ printf "http://cfg-api-v4-%s-%s:3001/ready" .Values.environment .Values.id | quote }}
+            - name: POLL_INTERVAL_SECONDS
+              value: {{ .Values.producerReadyReportGate.pollIntervalSeconds | quote }}
+{{- end }}

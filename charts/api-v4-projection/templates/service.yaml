@@ -6,8 +6,15 @@ metadata:
     {{- include "centrifuge-api-v4-projection.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
+  # The Query gate polls /health before handlers are Ready (Kafka replay runs for
+  # minutes), so the endpoint must exist while the Pod is not ready.
+  publishNotReadyAddresses: true
   selector:
     {{- include "centrifuge-api-v4-projection.selectorLabels" . | nindent 4 }}
+    # The gate and report Job Pods carry selectorLabels but not part-of. Keep
+    # them out of the endpoints so publishNotReadyAddresses never routes the
+    # Query gate at a hook Pod that does not serve the handlers port.
+    app.kubernetes.io/part-of: cfg-api-v4
   ports:
     - name: http
       port: {{ .Values.service.port }}

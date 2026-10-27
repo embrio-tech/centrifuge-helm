@@ -35,7 +35,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "centrifuge-api-v4-query.selectorLabels" $root | nindent 8 }}
+        {{- include "centrifuge-api-v4-query.hookPodLabels" $root | nindent 8 }}
     spec:
       restartPolicy: Never
       automountServiceAccountToken: false

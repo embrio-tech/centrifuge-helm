@@ -34,6 +34,20 @@ app.kubernetes.io/version: {{ . | quote }}
 {{- end }}
 {{- end }}
 
+{{/*
+Hook Pod labels. Deliberately NOT selectorLabels: the query Service (the preview
+Ingress backend) and the routes Services select Query Pods by component and
+query-id, and a hook Pod has no readiness probe, so it would otherwise be a Ready
+endpoint that serves nothing on the public-api port.
+*/}}
+{{- define "centrifuge-api-v4-query.hookPodLabels" -}}
+app.kubernetes.io/name: {{ include "centrifuge-api-v4-query.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/part-of: cfg-api-v4
+api-v4.centrifuge.io/environment: {{ .Values.environment | quote }}
+api-v4.centrifuge.io/hook: "true"
+{{- end }}
+
 {{- define "centrifuge-api-v4-query.labels" -}}
 {{ include "centrifuge-api-v4-query.podLabels" . }}
 helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
