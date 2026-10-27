@@ -2293,6 +2293,16 @@ entries:
   centrifuge-api-v4-projection:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2026-10-27T13:32:20.98580136Z"
+    description: API v4 Projection (handlers only). No CloudNative-PG.
+    digest: 4ddf447a24b35b539a535ba949428ee8de393871c5228f84a051fcfb46c4f603
+    name: centrifuge-api-v4-projection
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-projection-0.1.11/centrifuge-api-v4-projection-0.1.11.tgz
+    version: 0.1.11
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2026-10-21T19:32:24.568507455Z"
     description: API v4 Projection (handlers only). No CloudNative-PG.
     digest: 3bc25635cd2c35e610c136603de8532df078b3be5ae9847c1b14071dc4041036
@@ -3978,4 +3988,4 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/redpanda-0.1.2/redpanda-0.1.2.tgz
     version: 0.1.2
-generated: "2026-10-26T11:25:38.998861321Z"
+generated: "2026-10-27T13:32:46.94994404Z"
