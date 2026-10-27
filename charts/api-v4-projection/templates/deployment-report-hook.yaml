@@ -28,6 +28,10 @@ metadata:
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
     {{- if eq $item.suffix "start" }}
     argocd.argoproj.io/sync-wave: "0"
+    {{- else if eq $item.suffix "success" }}
+    # After producer-ready-report-hook.yaml, which holds the report until the
+    # Producer /ready.
+    argocd.argoproj.io/sync-wave: "1"
     {{- end }}
 spec:
   backoffLimit: 0

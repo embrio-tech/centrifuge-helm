@@ -65,12 +65,16 @@ if [ "$1" = "api-v4-projection" ]; then
   rendered="$(helm template lint-api-v4-projection "$chart" -f "$chart/ci/report-values.yaml" --kube-version "$kube_version")"
   fail=0
   count() { grep -c -F "$1" <<<"$rendered" || true; }
-  [ "$(count 'argocd.argoproj.io/hook: PreSync')" = 3 ] || { echo "expected Producer gate, report ConfigMap, and in_progress reporter" >&2; fail=1; }
-  [ "$(count 'argocd.argoproj.io/sync-wave: "-1"')" = 1 ] || { echo "expected one PreSync wave -1 report ConfigMap" >&2; fail=1; }
-  [ "$(count 'argocd.argoproj.io/sync-wave: "1"')" = 1 ] || { echo "expected one PreSync wave 1 Producer gate" >&2; fail=1; }
-  [ "$(count 'argocd.argoproj.io/hook: PostSync')" = 1 ] || { echo "expected one PostSync reporter" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/hook: PreSync')" = 3 ] || { echo "expected Producer health gate, report ConfigMap, and in_progress reporter" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/hook: PostSync')" = 2 ] || { echo "expected Producer-ready report gate and success reporter" >&2; fail=1; }
   [ "$(count 'argocd.argoproj.io/hook: SyncFail')" = 1 ] || { echo "expected one SyncFail reporter" >&2; fail=1; }
-  [ "$(count 'value: "http://cfg-api-v4-test-eu-pr-20261021-01-indexer:8080/ready"')" = 1 ] || { echo "Producer gate URL must name the Projection Producer" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/sync-wave: "-1"')" = 1 ] || { echo "expected one PreSync wave -1 report ConfigMap" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/sync-wave: "0"')" = 2 ] || { echo "expected PreSync in_progress reporter and PostSync Producer-ready report gate at wave 0" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/sync-wave: "1"')" = 2 ] || { echo "expected PreSync Producer health gate and PostSync success reporter at wave 1" >&2; fail=1; }
+  [ "$(count 'value: "http://cfg-api-v4-test-eu-pr-20261021-01-indexer:8080/health"')" = 1 ] || { echo "Producer health gate URL must name the Projection Producer" >&2; fail=1; }
+  [ "$(count 'value: "http://cfg-api-v4-test-eu-pr-20261021-01-indexer:8080/ready"')" = 1 ] || { echo "Producer-ready report gate URL must name the Projection Producer" >&2; fail=1; }
+  [ "$(count 'value: "http://cfg-api-v4-test-eu-pj-20261021-01:3001/ready"')" = 1 ] || { echo "report gate must re-check the Projection /ready" >&2; fail=1; }
+  grep -q 'publishNotReadyAddresses: true' <<<"$rendered" || { echo "projection Service must publish not-ready addresses for the Query gate" >&2; fail=1; }
   argo='https://argocd.cloud.embrio.tech/applications/argo/cfg-api-v4-test-eu-pj-20261021-01'
   [ "$(count "value: \"${argo}\"")" = 6 ] || { echo "projection Argo URL must be log and environment URL on all three statuses" >&2; fail=1; }
   grep -q '/applications/argo/cfg-api/' <<<"$rendered" && { echo "log URL must not include the cfg-api path segment" >&2; fail=1; }
@@ -81,10 +85,12 @@ if [ "$1" = "api-v4-query" ]; then
   rendered="$(helm template lint-api-v4-query "$chart" -f "$chart/ci/report-values.yaml" --kube-version "$kube_version")"
   fail=0
   count() { grep -c -F "$1" <<<"$rendered" || true; }
-  [ "$(count 'argocd.argoproj.io/hook: PreSync')" = 2 ] || { echo "expected PreSync ConfigMap and in_progress reporter" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/hook: PreSync')" = 3 ] || { echo "expected PreSync ConfigMap, in_progress reporter, and Projection health gate" >&2; fail=1; }
   [ "$(count 'argocd.argoproj.io/sync-wave: "-1"')" = 1 ] || { echo "expected one PreSync wave -1 report ConfigMap" >&2; fail=1; }
+  [ "$(count 'argocd.argoproj.io/sync-wave: "1"')" = 1 ] || { echo "expected one PreSync wave 1 Projection health gate" >&2; fail=1; }
   [ "$(count 'argocd.argoproj.io/hook: PostSync')" = 1 ] || { echo "expected one PostSync reporter" >&2; fail=1; }
   [ "$(count 'argocd.argoproj.io/hook: SyncFail')" = 1 ] || { echo "expected one SyncFail reporter" >&2; fail=1; }
+  [ "$(count 'value: "http://cfg-api-v4-test-eu-pj-20261021-01:3001/health"')" = 1 ] || { echo "Projection health gate URL must name the Query Projection" >&2; fail=1; }
   [ "$(count 'value: "https://cfg.embrio.tech/test/20261021-01"')" = 3 ] || { echo "preview URL must be environment_url on all three statuses" >&2; fail=1; }
   [ "$(count 'value: "https://argocd.cloud.embrio.tech/applications/argo/cfg-api-v4-test-eu-q-20261021-01"')" = 3 ] || { echo "query Argo URL must be log_url on all three statuses" >&2; fail=1; }
   grep -q '/applications/argo/cfg-api/' <<<"$rendered" && { echo "log URL must not include the cfg-api path segment" >&2; fail=1; }
@@ -92,6 +98,7 @@ if [ "$1" = "api-v4-query" ]; then
   grep -q 'stripPrefix:' <<<"$rendered" || { echo "preview stripPrefix missing" >&2; fail=1; }
   grep -q -- '- "/test/20261021-01"' <<<"$rendered" || { echo "stripPrefix must remove the preview path" >&2; fail=1; }
   grep -q 'type: ClusterIP' <<<"$rendered" || { echo "query Service must stay ClusterIP" >&2; fail=1; }
+  grep -q 'api-v4.centrifuge.io/hook: "true"' <<<"$rendered" || { echo "hook Pods must not carry workload selector labels" >&2; fail=1; }
   [ "$fail" = 0 ] || exit 1
 fi
 
@@ -107,6 +114,7 @@ if [ "$1" = "api-v4-event-lake" ]; then
   [ "$(count 'value: "api-v4:indexing"')" = 3 ] || { echo "producer task must be api-v4:indexing" >&2; fail=1; }
   argo='https://argocd.cloud.embrio.tech/applications/argo/cfg-api-v4-test-eu-pr-20261013-01'
   [ "$(count "value: \"${argo}\"")" = 6 ] || { echo "producer Argo URL must be log and environment URL on all three statuses" >&2; fail=1; }
+  grep -q 'publishNotReadyAddresses: true' <<<"$rendered" || { echo "indexer Service must publish not-ready addresses for the Projection gate" >&2; fail=1; }
   grep -q '/applications/argo/cfg-api/' <<<"$rendered" && { echo "log URL must not include the cfg-api path segment" >&2; fail=1; }
   [ "$fail" = 0 ] || exit 1
 fi

@@ -20,10 +20,25 @@ imagePullSecrets: []
 replicaCount: 1
 # Kafka replay before /ready can exceed one hour on a full resync.
 progressDeadlineSeconds: 21600
-producerReadyGate:
+# The Projection starts once the Producer answers /health, so handlers replay
+# while origination catches up and the preview is served sooner.
+producerHealthGate:
   enabled: true
-  # The Projection does not start until the Producer reaches every selected chain head.
-  activeDeadlineSeconds: 21600
+  # Not shorter than the Producer rollout deadline (indexer progressDeadlineSeconds),
+  # so the gate cannot fail while the Producer is still progressing.
+  activeDeadlineSeconds: 43200
+  pollIntervalSeconds: 5
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { cpu: 100m, memory: 128Mi }
+# Only rendered for the staging gate object (deploymentReport.enabled). Holds the
+# staging-ready success until the Producer answers /ready, because a Projection
+# that started on Producer /health can be ready while origination still catches
+# up, which would expose an incomplete staging Query.
+producerReadyReportGate:
+  enabled: true
+  # Not shorter than the Producer rollout deadline (indexer progressDeadlineSeconds).
+  activeDeadlineSeconds: 43200
   pollIntervalSeconds: 5
   resources:
     requests: { cpu: 25m, memory: 64Mi }

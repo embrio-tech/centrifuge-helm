@@ -17,6 +17,16 @@ image:
 
 imagePullSecrets: []
 replicaCount: 1
+# The Query Deployment does not start until the referenced Projection answers
+# /health. Replay continues after that; public-api waits for the Projection
+# schema before it serves, so the preview is served before replay finishes.
+projectionHealthGate:
+  enabled: true
+  activeDeadlineSeconds: 21600
+  pollIntervalSeconds: 5
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { cpu: 100m, memory: 128Mi }
 deploymentReport:
   enabled: false
   githubDeploymentsSecretName: ""

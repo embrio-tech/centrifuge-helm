@@ -1,0 +1,72 @@
+{{- if .Values.producerHealthGate.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "centrifuge-api-v4-projection.fullname" . }}-wait-producer
+  labels:
+    {{- include "centrifuge-api-v4-projection.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ .Values.producerHealthGate.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "centrifuge-api-v4-projection.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: producer-health
+          image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["node", "-e"]
+          args:
+            - |
+              // Producer /health turns 200 once the origination process is up,
+              // before every selected chain reaches head. Waiting on health (not
+              // /ready) lets handlers replay while origination catches up, so the
+              // preview is served sooner. The staging-ready report still waits
+              // for /ready in producer-ready-report-hook.yaml.
+              const url = process.env.PRODUCER_HEALTH_URL;
+              const interval = Number(process.env.POLL_INTERVAL_SECONDS) * 1000;
+              const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+              async function main() {
+                for (;;) {
+                  try {
+                    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+                    if (response.ok) {
+                      console.log(`Producer is healthy at ${url}`);
+                      return;
+                    }
+                    console.log(`Producer health returned ${response.status}`);
+                  } catch (error) {
+                    console.log(`Producer health request failed: ${error.message}`);
+                  }
+                  await wait(interval);
+                }
+              }
+              main().catch((error) => {
+                console.error(error);
+                process.exit(1);
+              });
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.producerHealthGate.resources | nindent 12 }}
+          env:
+            - name: PRODUCER_HEALTH_URL
+              value: {{ printf "http://cfg-api-v4-%s-%s-indexer:8080/health" .Values.environment .Values.producerId | quote }}
+            - name: POLL_INTERVAL_SECONDS
+              value: {{ .Values.producerHealthGate.pollIntervalSeconds | quote }}
+{{- end }}
