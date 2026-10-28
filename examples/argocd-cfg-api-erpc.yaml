@@ -16,7 +16,7 @@ spec:
   project: cfg-api
   source:
     repoURL: https://embrio-tech.github.io/centrifuge-helm
-    targetRevision: 0.1.53
+    targetRevision: 0.1.56
     helm:
       values: |
         postgres:
@@ -238,6 +238,10 @@ spec:
                         hedge: null
                   - architecture: evm
                     evm:
+                      chainId: 998
+                      fallbackFinalityDepth: 10
+                  - architecture: evm
+                    evm:
                       chainId: 42161
                       fallbackFinalityDepth: 20
                   - architecture: evm
@@ -404,6 +408,13 @@ spec:
                       blockAvailability:
                         upper:
                           latestBlockMinus: 0
+                  # Hyperliquid testnet (998): explicit testnet upstreams; QN/Alchemy provider-generated ones are ignored.
+                  - endpoint: ${QUICKNODE_HYPE_TESTNET_RPC}/evm
+                    evm:
+                      chainId: 998
+                  - endpoint: 'https://hyperliquid-testnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}' #evm
+                    evm:
+                      chainId: 998
                   - endpoint: https://rpc.plume.org/${CONDUIT_API_KEY}
                     evm:
                       chainId: 98866
@@ -428,6 +439,7 @@ spec:
                       apiKey: ${QUICKNODE_MASTER_API_KEY}
                     ignoreNetworks:
                       - evm:999
+                      - evm:998
                     overrides:
                       "evm:143":
                         ignoreMethods:
@@ -443,6 +455,7 @@ spec:
                       apiKey: ${ALCHEMY_API_KEY}
                     ignoreNetworks:
                       - evm:999
+                      - evm:998
                       - evm:5042
                     overrides:
                       "evm:143":
