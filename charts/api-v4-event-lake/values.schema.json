@@ -2,7 +2,19 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "title": "centrifuge-api-v4-event-lake values",
   "type": "object",
-  "required": ["environment", "network", "id", "generation", "selectedNetworks", "databaseSecretName", "image", "erpc", "global"],
+  "required": ["environment", "network", "id", "generation", "databaseSecretName", "image", "erpc", "global"],
+  "anyOf": [
+    { "required": ["selectedNetworks"] },
+    {
+      "required": ["global"],
+      "properties": {
+        "global": {
+          "required": ["env"],
+          "properties": { "env": { "required": ["SELECTED_NETWORKS"] } }
+        }
+      }
+    }
+  ],
   "properties": {
     "environment": { "type": "string", "pattern": "^(main|test)-(eu|us)$" },
     "network": { "enum": ["mainnet", "testnet"] },
@@ -10,8 +22,8 @@
     "generation": { "type": "string", "pattern": "^id[0-9]{12}$" },
     "selectedNetworks": {
       "type": "array",
-      "minItems": 1,
       "uniqueItems": true,
+      "description": "Legacy top-level chain list. New Producers author SELECTED_NETWORKS in global.env instead; the chart derives this list internally. Empty is allowed only when global.env.SELECTED_NETWORKS is set.",
       "items": { "type": "integer", "minimum": 1 }
     },
     "databaseSecretName": { "type": "string", "minLength": 1 },
@@ -40,7 +52,14 @@
         "env": {
           "type": "object",
           "required": ["REGISTRY_INCLUDE"],
-          "properties": { "REGISTRY_INCLUDE": { "type": "string", "minLength": 1 } },
+          "properties": {
+            "REGISTRY_INCLUDE": { "type": "string", "minLength": 1 },
+            "SELECTED_NETWORKS": {
+              "type": "string",
+              "pattern": "^[0-9]+(,[0-9]+)*$",
+              "description": "Comma-separated chain ids this Producer indexes. Preferred over the legacy top-level selectedNetworks list."
+            }
+          },
           "additionalProperties": { "type": ["string", "number", "boolean"] }
         }
       }

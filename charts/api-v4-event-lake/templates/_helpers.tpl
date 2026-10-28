@@ -33,6 +33,26 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
+Resolved SELECTED_NETWORKS. A new Producer authors it as an env string in
+global.env; an older one still carries a top-level list. Both render the same
+ConfigMap value. The chain list is derived here, never authored separately.
+*/}}
+{{- define "centrifuge-api-v4-event-lake.selectedNetworks" -}}
+{{- $env := .Values.global.env | default dict -}}
+{{- $fromEnv := index $env "SELECTED_NETWORKS" -}}
+{{- if $fromEnv -}}
+{{- $fromEnv | toString -}}
+{{- else -}}
+{{- $networks := list -}}
+{{- range .Values.selectedNetworks }}
+{{- /* Helm decodes YAML numbers as float64; large chain ids would print as 1.1e+07. */}}
+{{- $networks = append $networks (. | int64 | toString) }}
+{{- end }}
+{{- join "," $networks -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Runtime env rendered into the ConfigMap. Identity keys come from top-level values
 so the Producer object stays the only source for them.
 */}}
@@ -42,13 +62,16 @@ so the Producer object stays the only source for them.
 {{- $_ := set $data $key ($value | toString) }}
 {{- end }}
 {{- $_ := set $data "CFG_NETWORK" .Values.network }}
-{{- $networks := list }}
-{{- range .Values.selectedNetworks }}
-{{- /* Helm decodes YAML numbers as float64; large chain ids would print as 1.1e+07. */}}
-{{- $networks = append $networks (. | int64 | toString) }}
+{{- $selected := include "centrifuge-api-v4-event-lake.selectedNetworks" . -}}
+{{- if not $selected -}}
+{{- fail "set SELECTED_NETWORKS in global.env or a non-empty selectedNetworks list" -}}
 {{- end }}
-{{- $_ := set $data "SELECTED_NETWORKS" (join "," $networks) }}
-{{- range $networks }}
+{{- $parts := splitList "," $selected }}
+{{- if ne (len $parts) (len (uniq $parts)) }}
+{{- fail (printf "SELECTED_NETWORKS has duplicate chain ids: %s" $selected) }}
+{{- end }}
+{{- $_ := set $data "SELECTED_NETWORKS" $selected }}
+{{- range $parts }}
 {{- $key := printf "ENVIO_RPC_URL_%s" . }}
 {{- if not (hasKey $data $key) }}
 {{- $_ := set $data $key (printf $.Values.erpc.urlTemplate .) }}
@@ -59,17 +82,19 @@ so the Producer object stays the only source for them.
 
 {{/*
 Keys the chart derives. Setting them in global.env or indexer.env would give the
-Pod two sources for one name.
+Pod two sources for one name. SELECTED_NETWORKS is authored in global.env (the
+chart derives the ConfigMap value from it) so it is refused only in indexer.env.
 */}}
 {{- define "centrifuge-api-v4-event-lake.validate" -}}
-{{- $reserved := list "CFG_NETWORK" "SELECTED_NETWORKS" "INDEX_GENERATION" "REDPANDA_CLIENT_ID" "PRODUCER_ID" "API_V4_ENVIRONMENT" "ENVIO_PG_HOST" "ENVIO_PG_PORT" "ENVIO_PG_USER" "ENVIO_PG_PASSWORD" "ENVIO_PG_DATABASE" "ENVIO_PG_SCHEMA" }}
+{{- $globalReserved := list "CFG_NETWORK" "INDEX_GENERATION" "REDPANDA_CLIENT_ID" "PRODUCER_ID" "API_V4_ENVIRONMENT" "ENVIO_PG_HOST" "ENVIO_PG_PORT" "ENVIO_PG_USER" "ENVIO_PG_PASSWORD" "ENVIO_PG_DATABASE" "ENVIO_PG_SCHEMA" }}
+{{- $indexerReserved := prepend $globalReserved "SELECTED_NETWORKS" }}
 {{- range $key, $_ := .Values.global.env }}
-{{- if has $key $reserved }}
+{{- if has $key $globalReserved }}
 {{- fail (printf "global.env.%s is derived by the chart; set the matching top-level value instead" $key) }}
 {{- end }}
 {{- end }}
 {{- range .Values.indexer.env }}
-{{- if has .name $reserved }}
+{{- if has .name $indexerReserved }}
 {{- fail (printf "indexer.env %s is derived by the chart; set the matching top-level value instead" .name) }}
 {{- end }}
 {{- end }}
