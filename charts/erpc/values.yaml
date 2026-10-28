@@ -4,7 +4,7 @@ imagePullSecrets: []
 
 # Neither upstream nor auth Secrets are deployed by this chart. For migration you may point upstream and auth at the same Secret name(s).
 global:
-  # -- Existing Secret: upstream RPC provider keys and related infra (${VAR} in erpc.config), e.g. ALCHEMY_API_KEY, QUICKNODE_MASTER_API_KEY, QUICKNODE_HYPE_RPC (QuickNode base URL for Hyperliquid …/evm + …/nanoreth), CONDUIT_API_KEY, DRPC_API_KEY, PHAROS_API_KEY, REDIS_SHARED_STATE_URI, POSTGRES_CACHE_URI.
+  # -- Existing Secret: upstream RPC provider keys and related infra (${VAR} in erpc.config), e.g. ALCHEMY_API_KEY, QUICKNODE_MASTER_API_KEY, QUICKNODE_HYPE_RPC (QuickNode base URL for Hyperliquid …/evm + …/nanoreth), QUICKNODE_HYPE_TESTNET_RPC (QuickNode base URL for Hyperliquid testnet …/evm), CONDUIT_API_KEY, DRPC_API_KEY, PHAROS_API_KEY, REDIS_SHARED_STATE_URI, POSTGRES_CACHE_URI.
   erpcSecretName: erpc-secrets
   # -- Predeployed Secret metadata.name holding auth values; keys below must exist as Secret data keys (become env vars for ${KEY} in eRPC config).
   erpcAuthSecretName: erpc-auth-secrets
@@ -92,6 +92,10 @@ erpc:
             evm:
               chainId: 999
               fallbackFinalityDepth: 17
+          - architecture: evm
+            evm:
+              chainId: 998
+              fallbackFinalityDepth: 10
           - architecture: evm
             evm:
               chainId: 42161
@@ -185,6 +189,13 @@ erpc:
           - endpoint: 'https://hyperliquid-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}' #evm
             evm:
               chainId: 999
+          # Hyperliquid testnet (998): explicit testnet upstreams; QN/Alchemy provider-generated ones are ignored.
+          - endpoint: ${QUICKNODE_HYPE_TESTNET_RPC}/evm
+            evm:
+              chainId: 998
+          - endpoint: 'https://hyperliquid-testnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}' #evm
+            evm:
+              chainId: 998
           - endpoint: https://rpc.plume.org/${CONDUIT_API_KEY}
             evm:
               chainId: 98866
@@ -204,11 +215,13 @@ erpc:
               apiKey: ${QUICKNODE_MASTER_API_KEY}
             ignoreNetworks:
               - evm:999
+              - evm:998
           - vendor: alchemy
             settings:
               apiKey: ${ALCHEMY_API_KEY}
             ignoreNetworks:
               - evm:999
+              - evm:998
               - evm:5042
           - vendor: drpc
             settings:
