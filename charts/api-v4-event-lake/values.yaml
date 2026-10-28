@@ -5,7 +5,8 @@ network: ""
 id: ""
 # INDEX_GENERATION: topic infix and the Envio Postgres schema.
 generation: ""
-# Chain ids this Producer indexes, e.g. [11155111, 84532].
+# Legacy top-level chain list, e.g. [11155111, 84532]. Optional: a new Producer
+# authors SELECTED_NETWORKS in global.env and the chart derives the list.
 selectedNetworks: []
 # Environment-owned event-lake database app Secret (keys: host, port, username,
 # password, dbname).

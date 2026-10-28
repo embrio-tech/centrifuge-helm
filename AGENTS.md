@@ -16,7 +16,7 @@ docs/API-V4-RELEASE.md   developer release: origination, handlers, public-api
 
 Example manifests are named `argocd-<application-name>.yaml`, with a `_us` suffix for the us cluster (`destination.name: beta`; eu uses `destination.server`). The `argocd-cfg-api-erpc*.yaml` pair is a snapshot of the live eRPC Applications. Neither sets `helm.releaseName`, so eRPC resource names follow the Application name, which is why those names must stay `cfg-api-erpc` (eu) and `cfg-api-erpc-us` (us): api-v3 reaches them at those hostnames in production.
 
-Per-environment desired state for the public v4 stack lives in `centrifuge/api-v4-gitops` `environments/<environment>/`. ApplicationSets pass Producer, Projection, Query, and routes fields as Helm values. Chain lists and registry pins are `selectedNetworks` and `runtimeEnv` on the Producer.
+Per-environment desired state for the public v4 stack lives in `centrifuge/api-v4-gitops` `environments/<environment>/`. ApplicationSets pass Producer, Projection, Query, and routes fields as Helm values. Chain lists ride the Producer's merged env: a new Producer authors `SELECTED_NETWORKS` in `global.env` and the chart derives the list; the legacy top-level `selectedNetworks` list and separate `runtimeEnv` map are still accepted during the transition.
 
 | Dir | `Chart.yaml` name | Helper prefix | What it deploys |
 | --- | --- | --- | --- |
