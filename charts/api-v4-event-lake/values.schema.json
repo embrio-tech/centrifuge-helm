@@ -52,6 +52,7 @@
         "env": {
           "type": "object",
           "required": ["REGISTRY_INCLUDE"],
+          "description": "Runtime env for the Producer. Registry data (heads, ABIs) now comes from registry.manifest.json baked into the image, so REGISTRY_URL, REGISTRY_URL_MAINNET and REGISTRY_URL_TESTNET are refused: the entrypoint rejects runtime registry URLs. Legitimate overrides REGISTRY_INCLUDE and REGISTRY_<revision>_* (non-ABI) are still allowed.",
           "properties": {
             "REGISTRY_INCLUDE": { "type": "string", "minLength": 1 },
             "SELECTED_NETWORKS": {
@@ -59,6 +60,9 @@
               "pattern": "^[0-9]+(,[0-9]+)*$",
               "description": "Comma-separated chain ids this Producer indexes. Preferred over the legacy top-level selectedNetworks list."
             }
+          },
+          "patternProperties": {
+            "^(REGISTRY_URL|REGISTRY_URL_MAINNET|REGISTRY_URL_TESTNET)$": { "not": {} }
           },
           "additionalProperties": { "type": ["string", "number", "boolean"] }
         }
@@ -68,7 +72,20 @@
       "type": "object",
       "properties": {
         "replicaCount": { "type": "integer", "minimum": 0, "maximum": 1 },
-        "env": { "type": "array", "items": { "type": "object", "required": ["name"] } }
+        "env": {
+          "type": "array",
+          "description": "Extra container env. Registry URLs are refused here too: the image carries registry.manifest.json and never fetches a runtime registry head.",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "not": { "enum": ["REGISTRY_URL", "REGISTRY_URL_MAINNET", "REGISTRY_URL_TESTNET"] }
+              }
+            }
+          }
+        }
       }
     }
   }
