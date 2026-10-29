@@ -84,16 +84,25 @@ so the Producer object stays the only source for them.
 Keys the chart derives. Setting them in global.env or indexer.env would give the
 Pod two sources for one name. SELECTED_NETWORKS is authored in global.env (the
 chart derives the ConfigMap value from it) so it is refused only in indexer.env.
+Registry URLs are refused everywhere: the image carries registry.manifest.json and
+the entrypoint rejects runtime registry heads.
 */}}
 {{- define "centrifuge-api-v4-event-lake.validate" -}}
+{{- $registryReserved := list "REGISTRY_URL" "REGISTRY_URL_MAINNET" "REGISTRY_URL_TESTNET" }}
 {{- $globalReserved := list "CFG_NETWORK" "INDEX_GENERATION" "REDPANDA_CLIENT_ID" "PRODUCER_ID" "API_V4_ENVIRONMENT" "ENVIO_PG_HOST" "ENVIO_PG_PORT" "ENVIO_PG_USER" "ENVIO_PG_PASSWORD" "ENVIO_PG_DATABASE" "ENVIO_PG_SCHEMA" }}
 {{- $indexerReserved := prepend $globalReserved "SELECTED_NETWORKS" }}
 {{- range $key, $_ := .Values.global.env }}
+{{- if has $key $registryReserved }}
+{{- fail (printf "global.env.%s must not be set: registry data now comes from the image (registry.manifest.json); the entrypoint refuses runtime registry URLs" $key) }}
+{{- end }}
 {{- if has $key $globalReserved }}
 {{- fail (printf "global.env.%s is derived by the chart; set the matching top-level value instead" $key) }}
 {{- end }}
 {{- end }}
 {{- range .Values.indexer.env }}
+{{- if has .name $registryReserved }}
+{{- fail (printf "indexer.env %s must not be set: registry data now comes from the image (registry.manifest.json)" .name) }}
+{{- end }}
 {{- if has .name $indexerReserved }}
 {{- fail (printf "indexer.env %s is derived by the chart; set the matching top-level value instead" .name) }}
 {{- end }}

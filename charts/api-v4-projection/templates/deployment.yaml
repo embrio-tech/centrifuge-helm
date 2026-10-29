@@ -84,6 +84,12 @@ spec:
               value: {{ .Values.network | quote }}
             - name: HANDLERS_FAIL_CLOSED
               value: {{ .Values.failClosed | toString | quote }}
+            - name: PRODUCER_DISCOVERY_URL
+              value: {{ printf "http://cfg-api-v4-%s-%s-indexer:8080/discovery" .Values.environment .Values.producerId | quote }}
+            {{- if .Values.protocolEventsVersion }}
+            - name: PROTOCOL_EVENTS_VERSION
+              value: {{ .Values.protocolEventsVersion | quote }}
+            {{- end }}
             {{- range $key, $value := .Values.global.env }}
             - name: {{ $key }}
               value: {{ $value | toString | quote }}

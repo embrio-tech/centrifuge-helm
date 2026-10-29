@@ -73,6 +73,8 @@ if [ "$1" = "api-v4-projection" ]; then
   [ "$(count 'argocd.argoproj.io/sync-wave: "1"')" = 2 ] || { echo "expected PreSync Producer health gate and PostSync success reporter at wave 1" >&2; fail=1; }
   [ "$(count 'value: "http://cfg-api-v4-test-eu-pr-20261021-01-indexer:8080/health"')" = 1 ] || { echo "Producer health gate URL must name the Projection Producer" >&2; fail=1; }
   [ "$(count 'value: "http://cfg-api-v4-test-eu-pr-20261021-01-indexer:8080/ready"')" = 1 ] || { echo "Producer-ready report gate URL must name the Projection Producer" >&2; fail=1; }
+  [ "$(count 'name: PRODUCER_DISCOVERY_URL')" = 1 ] || { echo "Projection must set PRODUCER_DISCOVERY_URL" >&2; fail=1; }
+  [ "$(count 'value: "http://cfg-api-v4-test-eu-pr-20261021-01-indexer:8080/discovery"')" = 1 ] || { echo "PRODUCER_DISCOVERY_URL must name the Producer discovery endpoint" >&2; fail=1; }
   [ "$(count 'value: "http://cfg-api-v4-test-eu-pj-20261021-01:3001/ready"')" = 1 ] || { echo "report gate must re-check the Projection /ready" >&2; fail=1; }
   grep -q 'publishNotReadyAddresses: true' <<<"$rendered" || { echo "projection Service must publish not-ready addresses for the Query gate" >&2; fail=1; }
   argo='https://argocd.cloud.embrio.tech/applications/argo/cfg-api-v4-test-eu-pj-20261021-01'
