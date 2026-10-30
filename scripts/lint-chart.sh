@@ -80,6 +80,19 @@ if [ "$1" = "api-v4-projection" ]; then
   argo='https://argocd.cloud.embrio.tech/applications/argo/cfg-api-v4-test-eu-pj-20261021-01'
   [ "$(count "value: \"${argo}\"")" = 6 ] || { echo "projection Argo URL must be log and environment URL on all three statuses" >&2; fail=1; }
   grep -q '/applications/argo/cfg-api/' <<<"$rendered" && { echo "log URL must not include the cfg-api path segment" >&2; fail=1; }
+  # An env name and its value render on adjacent lines; match the line after the
+  # exact name so an equal value under another env var does not count.
+  value_after() {
+    local name_line="^ *- name: $1\$"
+    [ "$(grep -c -E -- "$name_line" <<<"$2" || true)" = 1 ] || return 1
+    [ "$(grep -A1 -E -- "$name_line" <<<"$2" | tail -n 1 | sed 's/^ *//')" = "value: \"$3\"" ]
+  }
+  producer_id_rendered="$(helm template lint-api-v4-projection "$chart" -f "$chart/ci/producer-id-generation-values.yaml" --kube-version "$kube_version")"
+  value_after INDEX_GENERATION "$producer_id_rendered" pr-20261013-01 || { echo "Producer-id generation must be INDEX_GENERATION verbatim" >&2; fail=1; }
+  value_after REDPANDA_CLIENT_ID "$producer_id_rendered" handlers-test-eu-pr-20261013-01-pj-20261013-01 || { echo "Producer-id generation must be verbatim inside REDPANDA_CLIENT_ID" >&2; fail=1; }
+  legacy_rendered="$(helm template lint-api-v4-projection "$chart" -f "$chart/ci/default-values.yaml" --kube-version "$kube_version")"
+  value_after INDEX_GENERATION "$legacy_rendered" id202610130000 || { echo "INDEX_GENERATION must come from generation, not producerId" >&2; fail=1; }
+  value_after REDPANDA_CLIENT_ID "$legacy_rendered" handlers-test-eu-id202610130000-pj-20261013-01 || { echo "REDPANDA_CLIENT_ID must carry generation, not producerId" >&2; fail=1; }
   [ "$fail" = 0 ] || exit 1
 fi
 

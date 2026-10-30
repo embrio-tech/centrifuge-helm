@@ -40,10 +40,13 @@ The generation is the Kafka topic infix verbatim, and the chart derives
 value is unchanged). The event-lake image refuses to start unless
 `ENVIO_PG_SCHEMA` is that derived schema, and an image built before Producer-id
 generations refuses a `pr-` generation. The Projection copies the generation.
-`centrifuge-api-v4-projection` validates `generation` as `id` plus 12 digits,
-and the retiring `centrifuge-api-v4-public` does the same for
-`INDEX_GENERATION`, so no handlers chart consumes a Producer with a Producer-id
-generation.
+`centrifuge-api-v4-projection` accepts a Producer id (`pr-YYYYMMDD-NN`) or `id`
+plus 12 digits and uses it verbatim as `INDEX_GENERATION` and inside
+`REDPANDA_CLIENT_ID`. The handlers image validates `INDEX_GENERATION` at start,
+and an image built before Producer-id generations refuses a `pr-` generation, so
+a handlers digest for a `pr-` Producer must accept a `pr-` generation. The
+retiring `centrifuge-api-v4-public` validates `INDEX_GENERATION` as `id` plus 12
+digits only.
 
 The event-lake and backend repositories do not carry per-environment Helm
 values. Do not add `environments/*.yaml` back there.
@@ -103,8 +106,9 @@ caught up or handlers completed a replay.
 
 A new `INDEX_GENERATION` is a new Producer. Deploy staging assigns a new
 generation when the event-lake image digest changes. It does not rewrite a
-config hash. The accepted forms and the Projection constraint are in the
-generation paragraph under "Release model" above.
+config hash. The accepted forms are in the generation paragraph under
+"Release model" above. A `pr-` generation needs event-lake and handlers images
+that accept Producer-id generations.
 
 A handlers or public-api image does not mint a Producer. Those changes stay on
 the current generation.
@@ -176,7 +180,8 @@ Merging the promotion pull request syncs `cfg-api-v4-routes-<env>`. That Applica
 Before that sync:
 
 1. Confirm the images still exist. A new Producer's hook creates topics on sync.
-2. Confirm the Projection's generation equals its Producer.
+2. Confirm the Projection's generation equals its Producer and that its
+   handlers image accepts that generation form.
 3. Record the current production and rollback pointers.
 
 Handlers use `Recreate`. A new Projection replays from the beginning into an
