@@ -41,11 +41,12 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
-Env vars the chart derives from the object identity. global.env must not set them,
-or the Pod would get two entries for one name and the last one silently wins.
+Env vars the chart derives from the object identity, plus retired names that must not be
+set. global.env must not set them, or the Pod would get two entries for one name and the
+last one silently wins.
 */}}
 {{- define "centrifuge-api-v4-projection.reservedEnv" -}}
-{{- list "POSTGRAPHILE_DATABASE_URL" "REDPANDA_CLIENT_ID" "PUBLIC_SCHEMA" "INDEX_GENERATION" "PROJECTION_ID" "CFG_NETWORK" "HANDLERS_FAIL_CLOSED" "PRODUCER_DISCOVERY_URL" | toJson }}
+{{- list "POSTGRAPHILE_DATABASE_URL" "REDPANDA_CLIENT_ID" "PUBLIC_SCHEMA" "INDEX_GENERATION" "PROJECTION_ID" "CFG_NETWORK" "HANDLERS_FAIL_CLOSED" "PRODUCER_DISCOVERY_URL" "PROTOCOL_EVENTS_VERSION" | toJson }}
 {{- end }}
 
 {{- define "centrifuge-api-v4-projection.validate" -}}
