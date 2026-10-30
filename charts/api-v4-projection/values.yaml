@@ -5,10 +5,6 @@ id: ""
 producerId: ""
 schema: ""
 generation: ""
-# @centrifuge/protocol-events version this Projection's image carries, from the
-# Projection object's protocolEvents.packageVersion. When set, the handler rejects a
-# Producer discovery snapshot built against a different package version.
-protocolEventsVersion: ""
 # Environment-owned public database app Secret (keys: uri). Owner role: this
 # Projection migrates and writes its own schema.
 databaseSecretName: ""

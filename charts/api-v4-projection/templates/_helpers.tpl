@@ -45,7 +45,7 @@ Env vars the chart derives from the object identity. global.env must not set the
 or the Pod would get two entries for one name and the last one silently wins.
 */}}
 {{- define "centrifuge-api-v4-projection.reservedEnv" -}}
-{{- list "POSTGRAPHILE_DATABASE_URL" "REDPANDA_CLIENT_ID" "PUBLIC_SCHEMA" "INDEX_GENERATION" "PROJECTION_ID" "CFG_NETWORK" "HANDLERS_FAIL_CLOSED" "PRODUCER_DISCOVERY_URL" "PROTOCOL_EVENTS_VERSION" | toJson }}
+{{- list "POSTGRAPHILE_DATABASE_URL" "REDPANDA_CLIENT_ID" "PUBLIC_SCHEMA" "INDEX_GENERATION" "PROJECTION_ID" "CFG_NETWORK" "HANDLERS_FAIL_CLOSED" "PRODUCER_DISCOVERY_URL" | toJson }}
 {{- end }}
 
 {{- define "centrifuge-api-v4-projection.validate" -}}
