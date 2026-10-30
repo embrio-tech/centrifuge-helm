@@ -4,6 +4,9 @@ network: ""
 id: ""
 producerId: ""
 schema: ""
+# Equals the Producer's generation (its `id`, `pr-YYYYMMDD-NN`, or `id` plus 12
+# digits); the chart does not check it. Used verbatim as INDEX_GENERATION and
+# inside REDPANDA_CLIENT_ID.
 generation: ""
 # @centrifuge/protocol-events version this Projection's image carries, from the
 # Projection object's protocolEvents.packageVersion. When set, the handler rejects a
