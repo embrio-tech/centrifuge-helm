@@ -33,9 +33,17 @@ Query. A changed digest mints new object ids:
 - Public-api digest only: new Query on the current Projection.
 
 A new Producer copies `runtimeEnv` and `history` from the previous one.
-`INDEX_GENERATION` is `Producer.generation` (`id` plus 12 digits, `idYYYYMMDDHHMM`).
-The Projection copies that generation. It is both `ENVIO_PG_SCHEMA` and the
-Kafka topic infix.
+`INDEX_GENERATION` is `Producer.generation`. The Producer chart accepts a
+Producer id (`pr-YYYYMMDD-NN`, the Producer's own `id`) or `id` plus 12 digits.
+The generation is the Kafka topic infix verbatim, and the chart derives
+`ENVIO_PG_SCHEMA` from it by replacing `-` with `_` (`pr_YYYYMMDD_NN`; a legacy
+value is unchanged). The event-lake image refuses to start unless
+`ENVIO_PG_SCHEMA` is that derived schema, and an image built before Producer-id
+generations refuses a `pr-` generation. The Projection copies the generation.
+`centrifuge-api-v4-projection` validates `generation` as `id` plus 12 digits,
+and the retiring `centrifuge-api-v4-public` does the same for
+`INDEX_GENERATION`, so no handlers chart consumes a Producer with a Producer-id
+generation.
 
 The event-lake and backend repositories do not carry per-environment Helm
 values. Do not add `environments/*.yaml` back there.
@@ -51,7 +59,7 @@ Helm values. A merge starts a rollout when the Application syncs. See
 | Origination image | Producer `image.digest` | `ghcr.io/centrifuge/event-lake` |
 | Handlers image | Projection `image.digest` | `ghcr.io/centrifuge/chain-event-handlers` |
 | Public-api image | Query `image.digest` | `ghcr.io/centrifuge/public-api` |
-| Generation | Producer `generation` | Envio schema and protocol-event topics |
+| Generation | Producer `generation` | protocol-event topic infix; Envio schema with `-` replaced by `_` |
 | Projection schema | Projection `schemas.schema` | `pj_YYYYMMDD_NN`, owned by that Projection |
 
 Image workflows publish `sha-<7 hex>` tags. Gitops pins the digest, not `latest`.
@@ -93,9 +101,10 @@ caught up or handlers completed a replay.
 
 ## 2. Generation follows the event-lake image
 
-A new `INDEX_GENERATION` is a new Producer. Deploy staging assigns
-`idYYYYMMDDHHMM` when the event-lake image digest changes. It does not rewrite
-a config hash.
+A new `INDEX_GENERATION` is a new Producer. Deploy staging assigns a new
+generation when the event-lake image digest changes. It does not rewrite a
+config hash. The accepted forms and the Projection constraint are in the
+generation paragraph under "Release model" above.
 
 A handlers or public-api image does not mint a Producer. Those changes stay on
 the current generation.
