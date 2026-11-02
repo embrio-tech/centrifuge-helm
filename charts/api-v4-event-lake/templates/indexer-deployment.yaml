@@ -80,8 +80,9 @@ spec:
                   name: {{ $db | quote }}
                   key: {{ $secretKey }}
             {{- end }}
+            {{- /* The event-lake image refuses to start on any other ENVIO_PG_SCHEMA. */}}
             - name: ENVIO_PG_SCHEMA
-              value: {{ .Values.generation | quote }}
+              value: {{ .Values.generation | replace "-" "_" | quote }}
             - name: INDEX_GENERATION
               value: {{ .Values.generation | quote }}
             - name: REDPANDA_CLIENT_ID

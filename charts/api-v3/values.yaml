@@ -54,13 +54,14 @@ indexer:
     periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 3
+  # 360 * 10s = 1h: allow long backfill/catch-up to reach /health before liveness applies.
   startupProbe:
     httpGet:
       path: /health
       port: 8000
     periodSeconds: 10
     timeoutSeconds: 5
-    failureThreshold: 120
+    failureThreshold: 360
   readinessProbe:
     initialDelaySeconds: 30
     httpGet:

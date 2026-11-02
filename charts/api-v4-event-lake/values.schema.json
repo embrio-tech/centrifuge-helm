@@ -19,7 +19,7 @@
     "environment": { "type": "string", "pattern": "^(main|test)-(eu|us)$" },
     "network": { "enum": ["mainnet", "testnet"] },
     "id": { "type": "string", "pattern": "^pr-[0-9]{8}-[0-9]{2}$" },
-    "generation": { "type": "string", "pattern": "^id[0-9]{12}$" },
+    "generation": { "type": "string", "pattern": "^(pr-[0-9]{8}-[0-9]{2}|id[0-9]{12})$" },
     "selectedNetworks": {
       "type": "array",
       "uniqueItems": true,
