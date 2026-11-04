@@ -1,20 +1,34 @@
 #!/usr/bin/env bash
-# Collect public_ro SQL connection details for every enabled sql-ro Service,
-# and test connectivity with psql (falls back to a TCP probe).
+# Print public_ro SQL connection strings for every enabled sql-ro Service.
 #
-# The host reported is the public host to connect to, resolved in this order:
+# Default output is one line per database: environment, connection string, status.
+# Use --verbose (-v) for the full detail (host, load balancer, port, database,
+# user, secret name, connectivity detail and the psql command).
+#
+# The host is the public host to connect to, resolved in this order:
 #   1. SQL_RO_HOST environment override
 #   2. external-dns hostname annotation on the Service (legacy api-v4-public)
-#   3. first non-localhost name in the CNPG Cluster certificate alt DNS names
+#   3. first non-internal name in the CNPG Cluster certificate alt DNS names
 #      (greenfield api-v4-database sets these from the Environment sqlRo host)
 #   4. the Service LoadBalancer address
+# If the public host does not answer, the load balancer address is tried and the
+# host is reported as stale.
 #
-# If the public host does not answer, the Service load balancer address is tried
-# too, and the host is reported as stale so the DNS record can be fixed.
-#
-# Usage: ./scripts/print-sql-ro-credentials.sh
+# Usage: ./scripts/print-sql-ro-credentials.sh [-v|--verbose] [-h|--help]
 # Optional: KUBECONFIG=~/.kube/alpha.yaml NAMESPACE=cfg-api SQL_RO_HOST=sql-v4-test.cfg.embrio.tech
 set -euo pipefail
+
+VERBOSE=0
+for arg in "$@"; do
+  case "$arg" in
+    -v|--verbose) VERBOSE=1 ;;
+    -h|--help)
+      sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    *) echo "error: unknown argument: $arg" >&2; exit 1 ;;
+  esac
+done
 
 export KUBECONFIG="${KUBECONFIG:-${HOME}/.kube/alpha.yaml}"
 NAMESPACE="${NAMESPACE:-cfg-api}"
@@ -133,6 +147,10 @@ for svc in "${SERVICES[@]}"; do
   # pooler name: <cluster>-pooler-sql-ro -> cluster: <cluster>
   cluster="${pooler%-pooler-sql-ro}"
 
+  env_label="$(kubectl -n "$NAMESPACE" get svc "$svc" \
+    -o jsonpath='{.metadata.labels.api-v4\.centrifuge\.io/environment}' 2>/dev/null || true)"
+  [[ -n "$env_label" ]] || env_label="$svc"
+
   port="$(kubectl -n "$NAMESPACE" get svc "$svc" \
     -o jsonpath='{.spec.ports[0].port}')"
   lb="$(kubectl -n "$NAMESPACE" get svc "$svc" \
@@ -147,24 +165,13 @@ for svc in "${SERVICES[@]}"; do
   dbname="${dbname:-app}"
   port="${port:-5432}"
 
-  echo "=== ${svc} ==="
-  echo "Host:     ${host:-unknown}"
-  echo "LB:       ${lb:-pending}"
-  echo "Port:     ${port}"
-  echo "Database: ${dbname}"
-  echo "User:     public_ro"
-  echo "SSL:      require"
-  echo "Secret:   ${NAMESPACE}/${ro_secret}"
-
   if ! kubectl -n "$NAMESPACE" get secret "$ro_secret" >/dev/null 2>&1; then
     missing_secret=1
-    echo "Password: MISSING"
-    echo
-    echo "CNPG has not created Secret ${ro_secret}."
-    echo "Check: kubectl -n ${NAMESPACE} get cluster ${cluster} -o jsonpath='{.status.managedRolesStatus}'"
-    echo "To force a new managed password Secret, temporarily remove public_ro from"
-    echo "cluster.spec.managed.roles, sync, then add it back (or ask CNPG to recreate)."
-    echo
+    echo "${env_label}: no credentials, Secret ${NAMESPACE}/${ro_secret} is missing" >&2
+    if [[ "$VERBOSE" -eq 1 ]]; then
+      echo "  CNPG has not created the Secret. Check the Cluster managedRolesStatus, or re-add public_ro"
+      echo "  to cluster.spec.managed.roles and sync to have CNPG recreate it."
+    fi
     continue
   fi
 
@@ -174,53 +181,69 @@ for svc in "${SERVICES[@]}"; do
 
   if [[ -z "$pass" ]]; then
     missing_secret=1
-    echo "Password: MISSING (secret exists but has no password key)"
-    echo
+    echo "${env_label}: no credentials, Secret ${NAMESPACE}/${ro_secret} has no password key" >&2
     continue
   fi
 
   found=1
-  echo "Password: ${pass}"
+  uri="postgresql://${user}:$(urlencode "$pass")@${host}:${port}/${dbname}?sslmode=require"
 
+  status="ok"
   stale_ip=""
   if [[ -z "$host" ]]; then
-    echo "Connectivity: SKIPPED (no hostname or load balancer address yet)"
+    status="skipped"
   else
     rc=0
     probe "$host" "$port" "$dbname" "$user" "$pass" || rc=$?
     if [[ "$rc" -eq 2 ]]; then
-      echo "Connectivity: SKIPPED (no psql or nc in PATH)"
+      status="skipped"
     elif [[ "$rc" -eq 0 ]]; then
-      echo "Connectivity: OK (select 1)"
+      status="ok"
     elif [[ -n "$lb" && "$host" != "$lb" ]]; then
       rc2=0
       probe "$lb" "$port" "$dbname" "$user" "$pass" || rc2=$?
       if [[ "$rc2" -eq 0 ]]; then
-        echo "Connectivity: OK via ${lb}; ${host} is stale, update the DNS record"
+        status="stale"
         stale_ip="$lb"
         dns_stale=1
       else
-        echo "Connectivity: FAILED (${host} and ${lb} both unreachable)"
+        status="FAILED"
         conn_failed=1
       fi
     else
-      echo "Connectivity: FAILED (${host}:${port})"
+      status="FAILED"
       conn_failed=1
     fi
   fi
 
-  echo
-  echo "psql \"host=${host} port=${port} dbname=${dbname} user=${user} password=${pass} sslmode=require\""
-  echo "postgresql://${user}:$(urlencode "$pass")@${host}:${port}/${dbname}?sslmode=require"
-  if [[ -n "$stale_ip" ]]; then
-    echo "postgresql://${user}:$(urlencode "$pass")@${stale_ip}:${port}/${dbname}?sslmode=require"
-    echo "  (the line above uses the load balancer address until the ${host} DNS record is fixed)"
+  if [[ "$VERBOSE" -eq 1 ]]; then
+    echo "=== ${env_label} (${svc}) ==="
+    echo "Host:         ${host:-unknown}"
+    echo "LB:           ${lb:-pending}"
+    echo "Port:         ${port}"
+    echo "Database:     ${dbname}"
+    echo "User:         ${user}"
+    echo "SSL:          require"
+    echo "Secret:       ${NAMESPACE}/${ro_secret}"
+    echo "Password:     ${pass}"
+    echo "Connectivity: ${status}"
+    echo "URI:          ${uri}"
+    if [[ -n "$stale_ip" ]]; then
+      echo "URI (VIP):    postgresql://${user}:$(urlencode "$pass")@${stale_ip}:${port}/${dbname}?sslmode=require"
+    fi
+    echo "psql:         psql \"host=${host} port=${port} dbname=${dbname} user=${user} password=${pass} sslmode=require\""
+    echo
+  else
+    printf '%-8s %s  %s\n' "$env_label" "$uri" "$status"
+    if [[ -n "$stale_ip" ]]; then
+      printf '%-8s postgresql://%s:%s@%s:%s/%s?sslmode=require  %s\n' \
+        "$env_label" "$user" "$(urlencode "$pass")" "$stale_ip" "$port" "$dbname" "VIP (DNS stale)"
+    fi
   fi
-  echo
 done
 
 if [[ "$found" -eq 0 ]]; then
-  echo "No usable public_ro credentials found in ${NAMESPACE}."
+  echo "No usable public_ro credentials found in ${NAMESPACE}." >&2
   exit 1
 fi
 
@@ -233,6 +256,6 @@ if [[ "$conn_failed" -eq 1 ]]; then
 fi
 
 if [[ "$dns_stale" -eq 1 ]]; then
-  echo "warning: at least one public host is stale; the Service load balancer address answered instead."
+  echo "warning: at least one public host is stale; use the VIP connection string or fix the DNS record." >&2
   exit 1
 fi
