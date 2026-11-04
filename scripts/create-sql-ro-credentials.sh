@@ -40,12 +40,13 @@ command -v openssl >/dev/null || die "openssl not found in PATH"
 command -v jq >/dev/null || die "jq not found in PATH"
 
 mapfile -t SERVICES < <(
-  kubectl -n "$NAMESPACE" get svc -l app.kubernetes.io/name=sql-ro \
-    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'
+  kubectl -n "$NAMESPACE" get svc \
+    -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.selector.cnpg\.io/poolerName}{"\n"}{end}' \
+  | awk '$2 ~ /-pooler-sql-ro$/ && $1 !~ /-pooler-sql-ro$/ {print $1}'
 )
 
 if [[ ${#SERVICES[@]} -eq 0 || -z "${SERVICES[0]:-}" ]]; then
-  echo "No sql-ro Services in namespace ${NAMESPACE}."
+  echo "No sql-ro Services in namespace ${NAMESPACE} (no Service selects a CNPG *-pooler-sql-ro pooler)."
   exit 0
 fi
 
