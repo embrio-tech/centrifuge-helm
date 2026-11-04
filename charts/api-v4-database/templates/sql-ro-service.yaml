@@ -1,11 +1,15 @@
 {{- if .Values.sqlRo.enabled }}
+{{- $annotations := .Values.sqlRo.service.annotations | default dict }}
+{{- if .Values.sqlRo.hostname }}
+{{- $annotations = merge (dict "external-dns.alpha.kubernetes.io/hostname" .Values.sqlRo.hostname) $annotations }}
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ printf "%s-sql-ro" .Release.Name | trunc 63 | trimSuffix "-" }}
   labels:
     {{- include "centrifuge-api-v4-database.labels" . | nindent 4 }}
-  {{- with .Values.sqlRo.service.annotations }}
+  {{- with $annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
