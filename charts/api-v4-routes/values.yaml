@@ -58,6 +58,7 @@ ingress:
       - ^https://([a-z0-9-]+\.)*centrifugelabs\.io$
       - ^https://([a-z0-9-]+\.)*centrifugescan\.io$
       - ^https://([a-z0-9-]+\.)*centrifuge-kf\.workers\.dev$
+      - ^https://[a-z0-9-]+-launchpad-nightly\.kf-dev\.workers\.dev$
   csp:
     graphql: "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
     # Ruru ships inline <style> (body margin / full viewport) and module Workers under /ruru-static/.
