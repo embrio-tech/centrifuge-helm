@@ -1,0 +1,14 @@
+environment: test-eu
+network: testnet
+id: q-20261013-01
+projectionId: pj-20261013-01
+producerId: pr-20261013-01
+schema: pj_20261013_01
+databaseSecretName: cfg-api-v4-database-public-test-eu-postgres-query
+image:
+  digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
+  displayTag: sha-example
+preview:
+  host: cfg.embrio.tech
+  tlsSecretName: cfg-api-v4-preview-tls
+  network: test
