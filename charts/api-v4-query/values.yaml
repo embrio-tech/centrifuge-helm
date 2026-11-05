@@ -3,6 +3,11 @@ environment: ""
 network: ""
 id: ""
 projectionId: ""
+# Optional. The paired Producer id (`pr-YYYYMMDD-NN`). When set, the chart adds
+# PRODUCER_METRICS_URL (the Producer's /metrics endpoint) so public-api serves
+# per-chain Blockchain.indexingStatus. Leave it unset and the field is not in the
+# schema, so existing releases and fixtures render unchanged.
+# producerId: pr-YYYYMMDD-NN
 schema: ""
 # Pre-deployed Secret for the read-only query role (keys: uri). Never the owner
 # app Secret: read-only is enforced by the database role, not by this chart.

@@ -91,15 +91,15 @@ pass preview explicitly; directPreviewByEnvironment is the fallback.
 {{- end -}}
 
 {{- define "centrifuge-api-v4-query.validate" -}}
-{{- $reserved := list "POSTGRAPHILE_DATABASE_URL" "PUBLIC_SCHEMA" "CFG_NETWORK" "QUERY_ID" "PROJECTION_ID" "QUERY_READ_ONLY" }}
+{{- $reserved := list "POSTGRAPHILE_DATABASE_URL" "PUBLIC_SCHEMA" "CFG_NETWORK" "QUERY_ID" "PROJECTION_ID" "QUERY_READ_ONLY" "PRODUCER_METRICS_URL" "PRODUCER_METRICS_TTL_MS" }}
 {{- range $key, $_ := .Values.global.env }}
 {{- if has $key $reserved }}
-{{- fail (printf "global.env.%s is derived by the chart; set the matching top-level value instead" $key) }}
+{{- fail (printf "global.env.%s is set by the chart from the object identity and cannot be provided here" $key) }}
 {{- end }}
 {{- end }}
 {{- range .Values.env }}
 {{- if has .name $reserved }}
-{{- fail (printf "env %s is derived by the chart; set the matching top-level value instead" .name) }}
+{{- fail (printf "env %s is set by the chart from the object identity and cannot be provided here" .name) }}
 {{- end }}
 {{- end }}
 {{- end }}
