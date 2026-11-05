@@ -121,6 +121,9 @@ if [ "$1" = "api-v4-query" ]; then
   grep -q -- '- "/test/20261021-01"' <<<"$rendered" || { echo "stripPrefix must remove the preview path" >&2; fail=1; }
   grep -q 'type: ClusterIP' <<<"$rendered" || { echo "query Service must stay ClusterIP" >&2; fail=1; }
   grep -q 'api-v4.centrifuge.io/hook: "true"' <<<"$rendered" || { echo "hook Pods must not carry workload selector labels" >&2; fail=1; }
+  producer_id_rendered="$(helm template lint-api-v4-query "$chart" -f "$chart/ci/producer-id-values.yaml" --kube-version "$kube_version")"
+  grep -q 'value: "http://cfg-api-v4-test-eu-pr-20261013-01-indexer:8080/metrics"' <<<"$producer_id_rendered" || { echo "producerId must render PRODUCER_METRICS_URL to the Producer /metrics Service" >&2; fail=1; }
+  grep -q 'PRODUCER_METRICS_URL' <<<"$rendered" && { echo "PRODUCER_METRICS_URL must be absent without producerId" >&2; fail=1; }
   [ "$fail" = 0 ] || exit 1
 fi
 
