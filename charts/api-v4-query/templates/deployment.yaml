@@ -81,6 +81,13 @@ spec:
               value: {{ .Values.projectionId | quote }}
             - name: CFG_NETWORK
               value: {{ .Values.network | quote }}
+            {{- if .Values.producerId }}
+            # Per-chain indexing status comes from the paired Producer's /metrics
+            # endpoint. Absent, public-api leaves Blockchain.indexingStatus out of
+            # the schema. The Producer image must serve /metrics on 8080.
+            - name: PRODUCER_METRICS_URL
+              value: {{ printf "http://cfg-api-v4-%s-%s-indexer:8080/metrics" .Values.environment .Values.producerId | quote }}
+            {{- end }}
             {{- range $key, $value := .Values.global.env }}
             - name: {{ $key }}
               value: {{ $value | toString | quote }}
