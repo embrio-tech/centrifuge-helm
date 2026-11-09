@@ -4017,6 +4017,21 @@ entries:
   redpanda:
   - apiVersion: v2
     appVersion: v26.1.14
+    created: "2026-11-09T13:50:28.302112022Z"
+    dependencies:
+    - name: redpanda
+      repository: https://charts.redpanda.com
+      version: 26.1.10
+    description: Redpanda cluster (Kafka API + Schema Registry + Console) for Centrifuge
+      protocol events
+    digest: ebf5d043f4a53d9042a3fd44be342a033e4dc33fea66939035d252ee1d65d866
+    name: redpanda
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/redpanda-0.1.11/redpanda-0.1.11.tgz
+    version: 0.1.11
+  - apiVersion: v2
+    appVersion: v26.1.14
     created: "2026-10-12T12:49:35.375909019Z"
     dependencies:
     - name: redpanda
@@ -4150,4 +4165,4 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/redpanda-0.1.2/redpanda-0.1.2.tgz
     version: 0.1.2
-generated: "2026-11-05T11:46:52.036085777Z"
+generated: "2026-11-09T13:50:30.163096572Z"
