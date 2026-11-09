@@ -1,0 +1,56 @@
+# New side-by-side instance (eRPC 0.5.0) for scripts/lint-chart.sh. The script
+# renders this with the conforming release name cfg-api-erpc-eu-v0-5 and asserts
+# the erpc.cfg/line label, the <release>-postgres cluster name, the 128Gi/32Gi
+# PVCs and the expiring cache TTLs; a non-conforming release name or a zero TTL
+# must fail the render (erpc.enforceNaming).
+postgres:
+  enabled: true
+  cluster:
+    storage:
+      size: 128Gi
+    walStorage:
+      enabled: true
+      size: 32Gi
+redis:
+  enabled: true
+erpc:
+  enforceNaming: true
+  lineLabel: v0-5
+  image:
+    tag: "0.5.0"
+  database:
+    evmJsonRpcCache:
+      enabled: true
+      postgresql:
+        finalizedTtl: 168h
+        unknownTtl: 168h
+  config:
+    logLevel: info
+    projects:
+      - id: main
+        # Project-wide integrity replaces the deprecated directiveDefaults.validate*
+        # flags; a network may override per check.
+        integrity:
+          checks:
+            bloomMatch:
+              enabled: true
+            transactionIndexConsistency:
+              enabled: true
+            logIndexContiguity:
+              enabled: true
+        networks:
+          - architecture: evm
+            evm:
+              chainId: 999
+            directiveDefaults:
+              enforceNonNullTaggedBlocks: true
+            integrity:
+              checks:
+                transactionsRootRecompute:
+                  enabled: false
+            selectionPolicy:
+              evalScope: network
+              evalFunc: |
+                (upstreams, ctx) => upstreams
+        upstreams:
+          - endpoint: https://example.com

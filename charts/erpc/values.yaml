@@ -14,6 +14,17 @@ global:
 erpc:
   enabled: true
   replicaCount: 1
+  # -- Optional extra label `erpc.cfg/line: <value>` added to object METADATA
+  #    labels only (e.g. "v0-5"). Never added to selector labels or the Pod
+  #    template, so it cannot collide with a running release or roll a Pod.
+  #    Empty (default) renders nothing, keeping legacy output byte-identical.
+  lineLabel: ""
+  # -- When true, the render fails unless .Release.Name matches the versioned
+  #    side-by-side convention `cfg-api-erpc-(eu|us)-v<MAJOR>-<MINOR>` and, if
+  #    the Postgres EVM cache is enabled, both cache TTLs are set to a non-zero
+  #    duration. Default false so legacy releases (cfg-api-erpc / cfg-api-erpc-us)
+  #    keep rendering during the transition.
+  enforceNaming: false
   image:
     repository: ghcr.io/erpc/erpc
     pullPolicy: IfNotPresent
@@ -176,7 +187,7 @@ erpc:
                     activePrimary = byVendor[present[preferredIdx]][0];
                   }
 
-                  // Single primary for every method: 0.0.64 evalPerMethod:false
+                  // Single primary for every method: evalPerMethod:false
                   // always evaluates method as "*". A multi-vendor pool would
                   // mix eth_getBlockByNumber and eth_getLogs across providers.
                   return activePrimary ? [activePrimary] : [];
@@ -351,6 +362,16 @@ erpc:
         maxConns: 20
         getTimeout: 2s
         setTimeout: 5s
+        # -- TTL applied to the PostgreSQL-backed (postgres-cache) policies for
+        #    finalized data (eth_getLogs/eth_getBlockByNumber/eth_call/receipts/
+        #    tx lookups) and for unknown-finality tx-hash lookups. "0" (default)
+        #    means permanent (rows never expire, never cleaned) — the historical
+        #    0.0.x behaviour, kept so legacy releases render unchanged. New
+        #    side-by-side instances set an explicit window (e.g. "168h" = 7d) so
+        #    eRPC's 5-minute cleanup prunes backfill-written rows. Use Go
+        #    time.ParseDuration syntax ("168h"), NOT "7d".
+        finalizedTtl: "0"
+        unknownTtl: "0"
 
 # -- Bitnami Redis — shared state backend per https://docs.erpc.cloud/config/database/shared-state
 #   Service: `<release-name>-redis-master:6379`

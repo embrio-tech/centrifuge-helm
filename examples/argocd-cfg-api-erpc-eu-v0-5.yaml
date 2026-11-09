@@ -1,0 +1,544 @@
+# Argo CD Application: eRPC 0.5.0 side-by-side instance for the cfg-api stack (eu cluster). Namespace: cfg-api.
+# Reviewed by ops, not applied by CI.
+#
+# Versioned instance name cfg-api-erpc-eu-v0-5. It runs ALONGSIDE the legacy
+# cfg-api-erpc (0.0.64) until cutover; consumers are repointed one at a time and
+# the legacy Application is frozen (see examples/argocd-cfg-api-erpc.yaml, which
+# is a snapshot of the live spec and must not be edited). Per the naming
+# convention releaseName == Application name, so every resource (Service, CNPG
+# Cluster <name>-postgres, Redis, PVCs, TLS secret) is isolated from the legacy
+# instance: no Service selector overlap, no Redis key overlap, separate PVCs.
+#
+# `erpc.enforceNaming: true` makes the render fail unless the release name
+# matches cfg-api-erpc-(eu|us)-v<MAJOR>-<MINOR> and the Postgres cache TTLs are
+# set to expire.
+#
+# Storage: ceph-perf3 (eu default). Chart defaults for data/WAL are NOT changed;
+# this instance sets 128Gi data + 32Gi WAL explicitly, sized for the 7d cache TTL.
+#
+# Secrets (pre-deployed by ops, read-only, shared with the legacy instance):
+# cfg-api-v3-rpc-keys, cfg-api-v3-auth-keys (ERPC_KEY_BETA).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cfg-api-erpc-eu-v0-5
+  namespace: argo
+spec:
+  project: cfg-api
+  source:
+    repoURL: https://embrio-tech.github.io/centrifuge-helm
+    # Chart version published by CI after the eRPC 0.5.0 chart change. The legacy
+    # instances stay pinned at 0.1.56 and never see this version.
+    targetRevision: 0.1.57
+    helm:
+      releaseName: cfg-api-erpc-eu-v0-5
+      values: |
+        postgres:
+          enabled: true
+          cluster:
+            instances: 1
+            storage:
+              size: 128Gi
+            walStorage:
+              enabled: true
+              size: 32Gi
+        global:
+          erpcSecretName: cfg-api-v3-rpc-keys
+          erpcAuthSecretName: cfg-api-v3-auth-keys
+          erpcAuthSecretKeys:
+            - ERPC_KEY_BETA
+        redis:
+          enabled: true
+        erpc:
+          replicaCount: 2
+          enforceNaming: true
+          lineLabel: v0-5
+          image:
+            tag: "0.5.0"
+          database:
+            evmJsonRpcCache:
+              enabled: true
+              postgresql:
+                # 7 days, expressed in Go time.ParseDuration syntax (eRPC does
+                # not accept "7d"). Rows written by backfills self-prune.
+                finalizedTtl: 168h
+                unknownTtl: 168h
+          ingress:
+            enabled: true
+            hosts:
+              - host: erpc-v0-5.cfg.embrio.tech
+                paths:
+                  - path: /
+                    pathType: Prefix
+            tls:
+              - secretName: cfg-api-erpc-eu-v0-5-tls
+                hosts:
+                  - erpc-v0-5.cfg.embrio.tech
+          config:
+            logLevel: info
+            server:
+              maxTimeout: 180s
+              trustedIPForwarders:
+                - 10.42.0.0/16
+                - 10.43.0.0/16
+                - 192.168.42.0/24
+              trustedIPHeaders:
+                - X-Forwarded-For
+                - X-Real-Ip
+            projects:
+              - id: main
+                auth:
+                  strategies:
+                    - type: network
+                      network:
+                        allowedCIDRs:
+                          - 10.42.0.0/16
+                        trustedProxies:
+                          - 192.168.42.0/24
+                          - 10.42.0.0/16
+                          - 10.43.0.0/16
+                # Project-wide data integrity (0.5.0). Applies to every network; a
+                # network may override per check. Replaces the deprecated
+                # directiveDefaults.validate* / enforceLogIndexStrictIncrements
+                # flags (which only warn under 0.5.0 and change semantics).
+                integrity:
+                  checks:
+                    bloomMatch:
+                      enabled: true
+                    transactionIndexConsistency:
+                      enabled: true
+                    logIndexContiguity:
+                      enabled: true
+                networkDefaults:
+                  failsafe:
+                    - matchMethod: "eth_getLogs"
+                      timeout:
+                        duration: 180s
+                      retry:
+                        maxAttempts: 3
+                        delay: 0ms
+                      hedge: null
+                    - matchMethod: "*"
+                      timeout:
+                        duration: 30s
+                      retry:
+                        maxAttempts: 3
+                        delay: 100ms
+                      hedge: null
+                  evm:
+                    getLogsSplitOnError: true
+                    getLogsMaxAllowedRange: 10000
+                    getLogsSplitConcurrency: 4
+                  directiveDefaults:
+                    enforceHighestBlock: true
+                    enforceGetLogsBlockRange: true
+                upstreamDefaults:
+                  evm:
+                    statePollerInterval: 2s
+                  failsafe:
+                    - matchMethod: "eth_getLogs"
+                      timeout:
+                        duration: 180s
+                      retry:
+                        maxAttempts: 2
+                        delay: 250ms
+                        backoffFactor: 2
+                      hedge: null
+                    - matchMethod: "*"
+                      timeout:
+                        duration: 30s
+                      retry:
+                        maxAttempts: 2
+                        delay: 250ms
+                        backoffFactor: 2
+                      hedge: null
+                networks:
+                  - architecture: evm
+                    evm:
+                      chainId: 999
+                      fallbackFinalityDepth: 40
+                    directiveDefaults:
+                      enforceHighestBlock: true
+                      enforceGetLogsBlockRange: true
+                      enforceNonNullTaggedBlocks: true
+                    # HyperEVM (999) omits system txs from the tx array but keeps them
+                    # in transactionsRoot, so the tx-array-derived checks and the two
+                    # root recomputations are disabled for this network only.
+                    integrity:
+                      checks:
+                        transactionsRootConsistency:
+                          enabled: false
+                        transactionsRootRecompute:
+                          enabled: false
+                        receiptsRootRecompute:
+                          enabled: false
+                        txBlockInfo:
+                          enabled: false
+                        txFieldUniqueness:
+                          enabled: false
+                        bloomMatch:
+                          enabled: false
+                        transactionIndexConsistency:
+                          enabled: false
+                        logIndexContiguity:
+                          enabled: false
+                    selectionPolicy:
+                      evalInterval: 15s
+                      # 0.5.0: one eval slot per network (ctx.method is "*"),
+                      # replacing the legacy evalPerMethod:false / resampleExcluded.
+                      evalScope: network
+                      evalFunc: |
+                        (upstreams, ctx) => {
+                          const method = ctx.method;
+                          const primaryId = "hl-quicknode-evm";
+                          const fallbackId = "hl-alchemy-evm";
+
+                          const maxErrorRate = 0.7;
+                          const maxBlockHeadLag = 16;
+
+                          const live = upstreams.filter(
+                            (u) => u.id === "hl-quicknode-evm" || u.id === "hl-alchemy-evm"
+                          );
+                          const archive = upstreams.filter(
+                            (u) => u.id === "hl-quicknode-nanoreth"
+                          );
+
+                          const isHealthy = (u) =>
+                            u.metrics.errorRate < maxErrorRate
+                            && u.metrics.blockHeadLag < maxBlockHeadLag;
+
+                          const primary = live.find((u) => u.id === primaryId);
+                          const fallback = live.find((u) => u.id === fallbackId);
+
+                          const withFallback = (list, other) =>
+                            other && !list.some((u) => u.id === other.id)
+                              ? list.concat([other])
+                              : list;
+
+                          let activeLive = [];
+                          let activePrimary = null;
+                          if (primary && isHealthy(primary)) {
+                            activeLive = withFallback([primary], fallback);
+                            activePrimary = primary;
+                          } else if (fallback && isHealthy(fallback)) {
+                            activeLive = withFallback([fallback], primary);
+                            activePrimary = fallback;
+                          } else if (primary) {
+                            activeLive = withFallback([primary], fallback);
+                            activePrimary = primary;
+                          } else if (fallback) {
+                            activeLive = withFallback([fallback], primary);
+                            activePrimary = fallback;
+                          } else if (live.length > 0) {
+                            activeLive = [live[0]];
+                            activePrimary = live[0];
+                          }
+
+                          const blockOrLogMethod =
+                            method === "eth_getBlockByNumber"
+                            || method === "eth_getBlockByHash"
+                            || method === "eth_getLogs";
+
+                          // === HYPERLIQUID LIVE MODE (default) ===
+                          // QN /evm primary; Alchemy second in pool (full HL history, failover on QN errors).
+                          // Nanoreth excluded from block/log methods. (Historically getLogs({ blockHash })
+                          // skipped blockAvailability; re-verify on the 0.5.0 canary before relaxing.)
+                          // Block + logs must come from ONE upstream: returning a single-element list (no fallback
+                          // in the pool) prevents erpc from serving the block from /evm and logs from /alchemy
+                          // (or vice-versa), which viem rejects as log.transactionIndex vs block.transactions mismatch.
+                          // The chosen upstream is stable for evalInterval (15s); if it errors the request fails
+                          // and Ponder retries against the same upstream — preferable to silent cross-provider mixing.
+                          if (blockOrLogMethod) {
+                            return activePrimary ? [activePrimary] : [];
+                          }
+
+                          // === HYPERLIQUID BACKFILL MODE ===
+                          // Stop live Ponder on HL (or use a dedicated backfill RPC URL), then:
+                          // 1. Comment out the LIVE "if (blockOrLogMethod)" block above.
+                          // 2. Uncomment the BACKFILL block below.
+                          // 3. Comment out eth_getLogs under hl-quicknode-nanoreth ignoreMethods.
+                          // if (method === "eth_getBlockByNumber" || method === "eth_getLogs") {
+                          //   return activeLive.concat(archive);
+                          // }
+                          // if (blockOrLogMethod) {
+                          //   return activeLive;
+                          // }
+
+                          return activeLive.concat(archive);
+                        }
+                    failsafe:
+                      - matchMethod: "eth_getBlockByNumber|eth_getBlockByHash"
+                        timeout:
+                          duration: 180s
+                        retry:
+                          maxAttempts: 1
+                          delay: 0ms
+                        hedge: null
+                      - matchMethod: "eth_getLogs"
+                        timeout:
+                          duration: 180s
+                        retry:
+                          maxAttempts: 2
+                          delay: 0ms
+                        hedge: null
+                      - matchMethod: "*"
+                        timeout:
+                          duration: 30s
+                        retry:
+                          maxAttempts: 2
+                          delay: 250ms
+                          backoffFactor: 2
+                        hedge: null
+                  - architecture: evm
+                    evm:
+                      chainId: 998
+                      fallbackFinalityDepth: 10
+                  - architecture: evm
+                    evm:
+                      chainId: 42161
+                      fallbackFinalityDepth: 20
+                  - architecture: evm
+                    evm:
+                      chainId: 8453
+                      fallbackFinalityDepth: 10
+                  - architecture: evm
+                    evm:
+                      chainId: 84532
+                      fallbackFinalityDepth: 10
+                  - architecture: evm
+                    evm:
+                      chainId: 98866
+                      fallbackFinalityDepth: 10
+                  - architecture: evm
+                    evm:
+                      chainId: 196
+                      fallbackFinalityDepth: 10
+                  - architecture: evm
+                    evm:
+                      chainId: 5042
+                      fallbackFinalityDepth: 10
+                  # Avalanche (43114): provider-generated QN/Alchemy/dRPC. One coherent
+                  # primary per hour so block + getLogs never mix vendors (Ponder/viem).
+                  # evalScope:network evaluates method as "*", so the policy always
+                  # returns a single-element list.
+                  - architecture: evm
+                    evm:
+                      chainId: 43114
+                      fallbackFinalityDepth: 10
+                    selectionPolicy:
+                      evalInterval: 15s
+                      # 0.5.0: one eval slot per network (ctx.method is "*"),
+                      # replacing the legacy evalPerMethod:false / resampleExcluded.
+                      evalScope: network
+                      evalFunc: |
+                        (upstreams, ctx) => {
+                          const maxErrorRate = 0.7;
+                          const maxBlockHeadLag = 16;
+                          const vendorOrder = ["quicknode", "alchemy", "drpc"];
+
+                          const isAvax = (u) =>
+                            typeof u.id === "string" && u.id.indexOf("evm:43114") !== -1;
+                          const vendorOf = (id) => {
+                            if (id.indexOf("quicknode-") === 0) return "quicknode";
+                            if (id.indexOf("alchemy-") === 0) return "alchemy";
+                            if (id.indexOf("drpc-") === 0) return "drpc";
+                            return null;
+                          };
+                          const isHealthy = (u) =>
+                            u.metrics.errorRate < maxErrorRate
+                            && u.metrics.blockHeadLag < maxBlockHeadLag;
+
+                          const avax = upstreams.filter(isAvax);
+                          const byVendor = {};
+                          for (const u of avax) {
+                            const v = vendorOf(u.id);
+                            if (!v) continue;
+                            if (!byVendor[v]) byVendor[v] = [];
+                            byVendor[v].push(u);
+                          }
+                          const present = vendorOrder.filter(
+                            (v) => byVendor[v] && byVendor[v].length > 0
+                          );
+                          if (present.length === 0) {
+                            return avax;
+                          }
+
+                          const hourSlot = Math.floor(Date.now() / 3600000);
+                          const preferredIdx = hourSlot % present.length;
+                          let activePrimary = null;
+                          for (let i = 0; i < present.length; i++) {
+                            const v = present[(preferredIdx + i) % present.length];
+                            const healthy = byVendor[v].find(isHealthy);
+                            if (healthy) {
+                              activePrimary = healthy;
+                              break;
+                            }
+                          }
+                          if (!activePrimary) {
+                            activePrimary = byVendor[present[preferredIdx]][0];
+                          }
+
+                          // Single primary for every method: evalScope:network
+                          // always evaluates method as "*". A multi-vendor pool would
+                          // mix eth_getBlockByNumber and eth_getLogs across providers.
+                          return activePrimary ? [activePrimary] : [];
+                        }
+                upstreams:
+                  - id: hl-quicknode-evm
+                    endpoint: '${QUICKNODE_HYPE_RPC}/evm'
+                    failsafe:
+                      - matchMethod: "eth_getBlockByNumber|eth_getBlockByHash"
+                        timeout:
+                          duration: 180s
+                        retry:
+                          maxAttempts: 1
+                          delay: 0ms
+                        hedge: null
+                      - matchMethod: "eth_getLogs"
+                        timeout:
+                          duration: 180s
+                        retry:
+                          maxAttempts: 2
+                          delay: 0ms
+                        hedge: null
+                    routing:
+                      scoreMultipliers:
+                        - overall: 1
+                    evm:
+                      chainId: 999
+                      getLogsAutoSplittingRangeThreshold: 1000
+                      blockAvailability:
+                        lower:
+                          latestBlockMinus: 180000
+                        upper:
+                          latestBlockMinus: 0
+
+                  - id: hl-quicknode-nanoreth
+                    endpoint: '${QUICKNODE_HYPE_RPC}/nanoreth'
+                    ignoreMethods:
+                      - eth_getBlockByHash
+                      - eth_getLogs
+                      # BACKFILL: comment out eth_getLogs above so nanoreth can serve cold range getLogs.
+                    failsafe:
+                      - matchMethod: "eth_getBlockByNumber|eth_getBlockByHash|eth_getLogs"
+                        timeout:
+                          duration: 180s
+                        retry:
+                          maxAttempts: 1
+                          delay: 0ms
+                        hedge: null
+                    routing:
+                      scoreMultipliers:
+                        - overall: 1
+                    evm:
+                      chainId: 999
+                      blockAvailability:
+                        upper:
+                          latestBlockMinus: 1024
+
+                  - id: hl-alchemy-evm
+                    endpoint: 'https://hyperliquid-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                    failsafe:
+                      - matchMethod: "eth_getBlockByNumber|eth_getBlockByHash"
+                        timeout:
+                          duration: 180s
+                        retry:
+                          maxAttempts: 1
+                          delay: 0ms
+                        hedge: null
+                      - matchMethod: "eth_getLogs"
+                        timeout:
+                          duration: 180s
+                        retry:
+                          maxAttempts: 2
+                          delay: 0ms
+                        hedge: null
+                    routing:
+                      scoreMultipliers:
+                        - overall: 1
+                    evm:
+                      chainId: 999
+                      getLogsAutoSplittingRangeThreshold: 1000
+                      blockAvailability:
+                        upper:
+                          latestBlockMinus: 0
+                  # Hyperliquid testnet (998): explicit testnet upstreams; QN/Alchemy provider-generated ones are ignored.
+                  - endpoint: ${QUICKNODE_HYPE_TESTNET_RPC}/evm
+                    evm:
+                      chainId: 998
+                  - endpoint: 'https://hyperliquid-testnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}' #evm
+                    evm:
+                      chainId: 998
+                  - endpoint: https://rpc.plume.org/${CONDUIT_API_KEY}
+                    evm:
+                      chainId: 98866
+                  - endpoint: https://pharos-mainnet.g.alchemy.com/v2/${PHAROS_API_KEY}
+                    evm:
+                      chainId: 1672
+                  - endpoint: 'https://arc-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                    evm:
+                      chainId: 5042
+                  - endpoint: https://lb.drpc.live/arc/${DRPC_API_KEY}
+                    evm:
+                      chainId: 5042
+                  - id: monad-historical
+                    endpoint: https://rpc-mainnet.monadinfra.com
+                    evm:
+                      chainId: 143
+                    allowMethods:
+                      - eth_call
+                providers:
+                  - vendor: quicknode
+                    settings:
+                      apiKey: ${QUICKNODE_MASTER_API_KEY}
+                    ignoreNetworks:
+                      - evm:999
+                      - evm:998
+                    overrides:
+                      "evm:143":
+                        ignoreMethods:
+                          - eth_call
+                      "evm:*":
+                        routing:
+                          scoreMultipliers:
+                            - network: ""
+                              method: ""
+                              overall: 1
+                  - vendor: alchemy
+                    settings:
+                      apiKey: ${ALCHEMY_API_KEY}
+                    ignoreNetworks:
+                      - evm:999
+                      - evm:998
+                      - evm:5042
+                    overrides:
+                      "evm:143":
+                        ignoreMethods:
+                          - eth_call
+                      "evm:*":
+                        routing:
+                          scoreMultipliers:
+                            - network: ""
+                              method: ""
+                              overall: 0.33
+                  - vendor: drpc
+                    settings:
+                      apiKey: ${DRPC_API_KEY}
+                    ignoreNetworks:
+                      - evm:999
+                      - evm:5042
+                    overrides:
+                      "evm:143":
+                        ignoreMethods:
+                          - eth_call
+                      "evm:*":
+                        routing:
+                          scoreMultipliers:
+                            - network: ""
+                              method: ""
+                              overall: 1
+    chart: erpc
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cfg-api

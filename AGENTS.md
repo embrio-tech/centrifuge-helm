@@ -14,7 +14,15 @@ examples/secrets/        commented-out Secret templates (never real values)
 docs/API-V4-RELEASE.md   developer release: origination, handlers, public-api
 ```
 
-Example manifests are named `argocd-<application-name>.yaml`, with a `_us` suffix for the us cluster (`destination.name: beta`; eu uses `destination.server`). The `argocd-cfg-api-erpc*.yaml` pair is a snapshot of the live eRPC Applications. Neither sets `helm.releaseName`, so eRPC resource names follow the Application name, which is why those names must stay `cfg-api-erpc` (eu) and `cfg-api-erpc-us` (us): api-v3 reaches them at those hostnames in production.
+Example manifests are named `argocd-<application-name>.yaml`, with a `_us` suffix for the us cluster (`destination.name: beta`; eu uses `destination.server`). The `argocd-cfg-api-erpc.yaml` / `argocd-cfg-api-erpc_us.yaml` pair is a frozen snapshot of the live eRPC Applications (0.0.64): neither sets `helm.releaseName`, so eRPC resource names follow the Application name, which is why those legacy names are `cfg-api-erpc` (eu) and `cfg-api-erpc-us` (us): api-v3 reaches them at those hostnames in production. Do not edit or rename them; they are retired only after cutover (see below).
+
+eRPC upgrades are side-by-side: a new eRPC minor/major line is a **new** Application whose name is the versioned convention
+
+```text
+cfg-api-erpc-<region>-v<MAJOR>-<MINOR>     region in {eu, us}, dash not dot (DNS-1123)
+```
+
+and `spec.source.helm.releaseName` is set explicitly to that same name, so every resource (Service, CNPG `Cluster <name>-postgres`, Redis, PVCs, TLS secret) is isolated from the legacy instance by `.Release.Name` — no Service selector overlap, no Redis key overlap, separate PVCs. Examples: `cfg-api-erpc-eu-v0-5`, `cfg-api-erpc-us-v0-5`, next `cfg-api-erpc-eu-v0-6`. The `_us` filename suffix is superseded for these because the region is in the Application name (the file still follows `argocd-<application-name>.yaml`, so `argocd-cfg-api-erpc-us-v0-5.yaml`). Patch bumps (`0.5.0` -> `0.5.1`) roll in place by changing `erpc.image.tag`; a new minor is a new side-by-side instance. New instances set `erpc.enforceNaming: true` (fails the render unless the name matches the pattern and the Postgres cache TTLs expire) and `erpc.lineLabel: v0-5` (an `erpc.cfg/line` metadata label; never a selector label). Consumers are repointed one URL per upgrade; keep at most two live lines per region.
 
 Per-environment desired state for the public v4 stack lives in `centrifuge/api-v4-gitops` `environments/<environment>/`. ApplicationSets pass Producer, Projection, Query, and routes fields as Helm values. Chain lists ride the Producer's merged env: a new Producer authors `SELECTED_NETWORKS` in `global.env` and the chart derives the list; the legacy top-level `selectedNetworks` list and separate `runtimeEnv` map are still accepted during the transition.
 
