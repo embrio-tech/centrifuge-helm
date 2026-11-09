@@ -119,7 +119,7 @@ Available locally: `helm` v4, `yq` v4, `kubectl`. No cluster access is assumed. 
 - No Secrets rendered by any chart, ever.
 - `indexer`: `replicaCount: 1`, `strategy: Recreate`, no HPA. `handlers`: `strategy: Recreate`, no HPA, `replicaCount` may be 0.
 - Never raise topic partitions above 1 (ordering) and keep speculative compacted.
-- Redpanda Kafka, Schema Registry and Admin stay cluster-internal. No TLS, no SASL (app limitation). Only Console may get an Ingress, and it has no auth.
+- Redpanda Kafka, Schema Registry and Admin stay cluster-internal. No TLS, no SASL (app limitation). Console has no auth and must NOT be exposed to the public internet: keep its Ingress off and reach it with `kubectl port-forward`. Never expose it via an Ingress or other public route.
 - No init containers or migration Jobs for public-db. Greenfield query does not migrate; handlers own Projection DDL and query waits for it before PostGraphile introspection.
 - Do not modify `charts/api-v2`, `charts/api-v3`, or `charts/erpc` unless the task says so.
 - Do not apply the manifests in `examples/`. They are reviewed by ops.

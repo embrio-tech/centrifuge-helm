@@ -11,7 +11,8 @@ imagePullSecrets: []
 #
 # Upstream defaults expose Kafka/Admin/Schema Registry as NodePort. That is not
 # acceptable here: handlers have no SASL/TLS, so the Kafka API must stay
-# in-cluster only. Console is the only component that may get an Ingress.
+# in-cluster only. Console has no auth either, so it must NOT be exposed to the
+# public internet: keep its Ingress off and reach it via `kubectl port-forward`.
 redpanda:
   fullnameOverride: ""
   statefulset:
@@ -159,6 +160,6 @@ redpanda:
         cpu: 100m
         memory: 256Mi
     ingress:
-      enabled: false             # enable per environment; traefik + tls-acme annotations
+      enabled: false             # never expose publicly (no auth); reach Console via port-forward
     monitoring:
       enabled: true

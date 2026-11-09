@@ -9,6 +9,10 @@ In-cluster endpoints (Helm release `cfg-api-redpanda`):
 External Kafka / Schema Registry / Admin are disabled. Do not re-enable
 `redpanda.external` while handlers still speak plaintext with no SASL.
 
+The Console has no auth and is not exposed to the public internet. Keep
+`redpanda.console.ingress.enabled` false; reach it with
+`kubectl -n cfg-api port-forward svc/cfg-api-redpanda-console 8080:8080`.
+
 This chart does not create protocol-event topics or schema subjects. Each
 event-lake release does that for its own CFG_NETWORK and INDEX_GENERATION
 before the indexer rolls. Auto-create stays off. Topics stay at 1 partition.
