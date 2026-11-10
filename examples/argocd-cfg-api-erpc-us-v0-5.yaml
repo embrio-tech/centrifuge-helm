@@ -498,6 +498,192 @@ spec:
                       chainId: 143
                     allowMethods:
                       - eth_call
+                  # WebSocket upstreams for eth_subscribe. eRPC only serves subscriptions through
+                  # an upstream whose endpoint is ws://|wss:// (GetWsUpstreams), and the vendors
+                  # above generate HTTP-only endpoints, so the Alchemy and dRPC WS twins are explicit here.
+                  # `ignoreMethods: ["*"]` keeps them out of normal request routing: the https
+                  # vendor fallback above is unchanged, they serve subscriptions only.
+                  - id: ws-alchemy-999
+                    endpoint: 'wss://hyperliquid-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 999
+                  - id: ws-alchemy-998
+                    endpoint: 'wss://hyperliquid-testnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 998
+                  - id: ws-alchemy-42161
+                    endpoint: 'wss://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 42161
+                  - id: ws-alchemy-8453
+                    endpoint: 'wss://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 8453
+                  - id: ws-alchemy-84532
+                    endpoint: 'wss://base-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 84532
+                  - id: ws-alchemy-43114
+                    endpoint: 'wss://avax-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 43114
+                  - id: ws-alchemy-196
+                    endpoint: 'wss://xlayer-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 196
+                  - id: ws-alchemy-5042
+                    endpoint: 'wss://arc-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 5042
+                  # 98866 (Plume): Alchemy is auto-generated for this network; confirm the WS
+                  # host for the account before relying on it.
+                  # dRPC WS twins (lb.drpc.live, path style). Alchemy + dRPC give subscription
+                  # failover across two vendors. QuickNode is omitted: its per-chain endpoint is
+                  # fetched dynamically from QuickNode's API, so no static wss:// URL exists here.
+                  - id: ws-drpc-998
+                    endpoint: 'wss://lb.drpc.live/hyperliquid-testnet/${DRPC_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 998
+                  - id: ws-drpc-42161
+                    endpoint: 'wss://lb.drpc.live/arbitrum/${DRPC_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 42161
+                  - id: ws-drpc-8453
+                    endpoint: 'wss://lb.drpc.live/base/${DRPC_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 8453
+                  - id: ws-drpc-84532
+                    endpoint: 'wss://lb.drpc.live/base-sepolia/${DRPC_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 84532
+                  - id: ws-drpc-43114
+                    endpoint: 'wss://lb.drpc.live/avalanche/${DRPC_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 43114
+                  - id: ws-drpc-196
+                    endpoint: 'wss://lb.drpc.live/xlayer/${DRPC_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 196
+                  - id: ws-drpc-98866
+                    endpoint: 'wss://lb.drpc.live/plume/${DRPC_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 98866
+                  - id: ws-drpc-5042
+                    endpoint: 'wss://lb.drpc.live/arc/${DRPC_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 5042
+                  # WS twins for the chains only auto-generated by the providers above
+                  # (1,10,56,143,1672,11155111,421614). Same subscription-only rule.
+                  - id: ws-alchemy-1
+                    endpoint: 'wss://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 1
+                  - id: ws-alchemy-10
+                    endpoint: 'wss://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 10
+                  - id: ws-alchemy-56
+                    endpoint: 'wss://bnb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 56
+                  - id: ws-alchemy-143
+                    endpoint: 'wss://monad-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 143
+                  - id: ws-alchemy-11155111
+                    endpoint: 'wss://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 11155111
+                  - id: ws-alchemy-421614
+                    endpoint: 'wss://arb-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 421614
+                  - id: ws-drpc-1
+                    endpoint: 'wss://lb.drpc.live/ethereum/${DRPC_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 1
+                  - id: ws-drpc-10
+                    endpoint: 'wss://lb.drpc.live/optimism/${DRPC_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 10
+                  - id: ws-drpc-56
+                    endpoint: 'wss://lb.drpc.live/bsc/${DRPC_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 56
+                  - id: ws-drpc-143
+                    endpoint: 'wss://lb.drpc.live/monad-mainnet/${DRPC_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 143
+                  - id: ws-drpc-1672
+                    endpoint: 'wss://lb.drpc.live/pharos/${DRPC_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 1672
+                  - id: ws-drpc-11155111
+                    endpoint: 'wss://lb.drpc.live/sepolia/${DRPC_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 11155111
+                  - id: ws-drpc-421614
+                    endpoint: 'wss://lb.drpc.live/arbitrum-sepolia/${DRPC_API_KEY}'
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 421614
                 providers:
                   - vendor: quicknode
                     settings:
