@@ -30,7 +30,7 @@ spec:
     repoURL: https://embrio-tech.github.io/centrifuge-helm
     # Chart version published by CI after the eRPC 0.5.0 chart change. The legacy
     # instances stay pinned at 0.1.56 and never see this version.
-    targetRevision: 0.1.57
+    targetRevision: 0.1.58
     helm:
       releaseName: cfg-api-erpc-eu-v0-5
       values: |
