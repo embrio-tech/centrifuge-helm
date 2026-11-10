@@ -42,7 +42,12 @@
       "type": "object",
       "required": ["urlTemplate"],
       "properties": {
-        "urlTemplate": { "type": "string", "pattern": "^https?://.+%s" }
+        "urlTemplate": { "type": "string", "pattern": "^https?://.+%s" },
+        "wsUrlTemplate": {
+          "type": "string",
+          "pattern": "^(wss?://.+%s)?$",
+          "description": "Optional WebSocket template for ENVIO_RPC_WS_<chainId>. When empty it is derived from urlTemplate by swapping the scheme (http->ws, https->wss), since the in-cluster eRPC serves WS on the same port and path as HTTP."
+        }
       }
     },
     "global": {

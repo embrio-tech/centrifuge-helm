@@ -71,10 +71,21 @@ so the Producer object stays the only source for them.
 {{- fail (printf "SELECTED_NETWORKS has duplicate chain ids: %s" $selected) }}
 {{- end }}
 {{- $_ := set $data "SELECTED_NETWORKS" $selected }}
+{{- /* WebSocket endpoint for head streaming. Explicit erpc.wsUrlTemplate wins;
+       otherwise derive it from the HTTP urlTemplate by swapping the scheme, so the
+       in-cluster eRPC (WS on the same port/path as HTTP) works with no extra config. */}}
+{{- $wsTemplate := $.Values.erpc.wsUrlTemplate -}}
+{{- if not $wsTemplate -}}
+{{- $wsTemplate = regexReplaceAll "^https://" (regexReplaceAll "^http://" $.Values.erpc.urlTemplate "ws://") "wss://" -}}
+{{- end }}
 {{- range $parts }}
 {{- $key := printf "ENVIO_RPC_URL_%s" . }}
 {{- if not (hasKey $data $key) }}
 {{- $_ := set $data $key (printf $.Values.erpc.urlTemplate .) }}
+{{- end }}
+{{- $wsKey := printf "ENVIO_RPC_WS_%s" . }}
+{{- if not (hasKey $data $wsKey) }}
+{{- $_ := set $data $wsKey (printf $wsTemplate .) }}
 {{- end }}
 {{- end }}
 {{- toYaml $data }}
