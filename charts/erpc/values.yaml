@@ -274,6 +274,13 @@ erpc:
       kubernetes.io/tls-acme: "true"
       traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
       nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      # WebSocket (wss://) rides the same TLS router/port (4000) as HTTP. Traefik passes
+      # the Upgrade handshake with no extra annotation; the nginx-ingress annotations keep
+      # long-lived connections alive (HTTP/1.1 upstream, 1h proxy timeouts). Consumers use
+      # wss://<host>/<project>/<architecture>/<chainId> (see erpc.server.webSocket).
+      nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     hosts: []
     tls: []
 
