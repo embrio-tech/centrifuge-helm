@@ -21,6 +21,13 @@ Cap maxConns to avoid exhausting Postgres max_connections (SQLSTATE 53300); scal
 {{- $pgSetTimeout := default "5s" $pg.setTimeout }}
 {{- $memMaxItems := default 200000 $mem.maxItems }}
 {{- $memMaxTotalSize := default "1GB" $mem.maxTotalSize }}
+{{- /* TTLs on the PostgreSQL-backed (postgres-cache) policies. Historically "0"
+       (permanent, never cleaned by eRPC). New side-by-side instances set an
+       explicit expiring window (e.g. 168h = 7d) so backfill-written rows
+       self-prune. Duration strings only: eRPC uses Go time.ParseDuration, so
+       "168h", not "7d". Default "0" keeps every legacy render byte-identical. */}}
+{{- $finalizedTtl := default "0" $pg.finalizedTtl }}
+{{- $unknownTtl := default "0" $pg.unknownTtl }}
 connectors:
   - id: memory-cache
     driver: memory
@@ -57,7 +64,7 @@ policies:
     finality: finalized
     empty: allow         # cache empty AND non-empty — safe once finalized
     connector: postgres-cache
-    ttl: 0
+    ttl: {{ $finalizedTtl }}
 
   # --- eth_getBlockByNumber: finalized only (never eternal near tip) ---
   - network: "*"
@@ -65,7 +72,7 @@ policies:
     finality: finalized
     empty: allow
     connector: postgres-cache
-    ttl: 0
+    ttl: {{ $finalizedTtl }}
 
   # --- Realtime: short TTL, no logs/blocks ---
   - network: "*"
@@ -89,7 +96,7 @@ policies:
     finality: unknown
     empty: ignore
     connector: postgres-cache
-    ttl: 0
+    ttl: {{ $unknownTtl }}
 
   # --- Finalized archive ---
   - network: "*"
@@ -97,11 +104,11 @@ policies:
     finality: finalized
     empty: allow
     connector: postgres-cache
-    ttl: 0
+    ttl: {{ $finalizedTtl }}
   - network: "*"
     method: "eth_getBlockByHash|eth_getBlockReceipts|eth_getTransactionByHash|eth_getTransactionReceipt"
     finality: finalized
     empty: ignore
     connector: postgres-cache
-    ttl: 0
+    ttl: {{ $finalizedTtl }}
 {{- end }}

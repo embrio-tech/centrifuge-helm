@@ -1,0 +1,8 @@
+{{- /*
+Renders no resource: includes erpc.validate for its side effect (fail) so
+cross-field rules a values.schema.json cannot express are enforced at render
+time. Gated on erpc.enabled so a disabled release is a no-op.
+*/ -}}
+{{- if .Values.erpc.enabled }}
+{{- include "erpc.validate" . }}
+{{- end }}

@@ -1,0 +1,12 @@
+# Legacy-shaped instance for scripts/lint-chart.sh: full stack (Redis + CloudNative-PG
+# EVM cache) with the historical permanent cache TTLs (postgresql.finalizedTtl /
+# unknownTtl default to "0"), no line label and no naming enforcement. Guards the
+# legacy render path on the 0.5.0 chart.
+postgres:
+  enabled: true
+redis:
+  enabled: true
+erpc:
+  database:
+    evmJsonRpcCache:
+      enabled: true

@@ -24,12 +24,19 @@ if [ ${#values_files[@]} -eq 0 ]; then
   values_files=("")
 fi
 
+# The erpc chart can enforce a versioned release-name convention
+# (erpc.enforceNaming: true, exercised by ci/newinstance-values.yaml). Use a
+# conforming release name so that fixture renders; the default-values fixture
+# leaves enforceNaming false and is unaffected.
+release_name="lint-${1}"
+[ "$1" = "erpc" ] && release_name="cfg-api-erpc-eu-v0-5"
+
 for values in "${values_files[@]}"; do
   args=()
   [ -n "$values" ] && args=(-f "$values")
   echo "::group::${chart} ${values:-defaults}"
   helm lint "$chart" --strict "${args[@]}"
-  helm template "lint-${1}" "$chart" "${args[@]}" --kube-version "$kube_version" \
+  helm template "$release_name" "$chart" "${args[@]}" --kube-version "$kube_version" \
     | kubeconform -strict -summary \
         -kubernetes-version "$kube_version" \
         -schema-location default \
@@ -142,5 +149,29 @@ if [ "$1" = "api-v4-event-lake" ]; then
   producer_id_rendered="$(helm template lint-api-v4-event-lake "$chart" -f "$chart/ci/producer-id-generation-values.yaml" --kube-version "$kube_version")"
   value_after ENVIO_PG_SCHEMA "$producer_id_rendered" pr_20261013_01 || { echo "Producer-id generation must be the Envio schema with - replaced by _" >&2; fail=1; }
   value_after INDEX_GENERATION "$producer_id_rendered" pr-20261013-01 || { echo "Producer-id generation must be INDEX_GENERATION verbatim" >&2; fail=1; }
+  [ "$fail" = 0 ] || exit 1
+fi
+
+# eRPC side-by-side migration: a versioned new instance must be naming-isolated,
+# carry the line label, size Postgres for the cache TTL, and set expiring cache
+# TTLs; a non-conforming release name must fail the render (erpc.enforceNaming).
+if [ "$1" = "erpc" ]; then
+  rendered="$(helm template cfg-api-erpc-eu-v0-5 "$chart" -f "$chart/ci/newinstance-values.yaml" --kube-version "$kube_version")"
+  fail=0
+  count() { grep -c -F "$1" <<<"$rendered" || true; }
+  grep -q 'erpc.cfg/line: "v0-5"' <<<"$rendered" || { echo "new instance must carry the erpc.cfg/line metadata label" >&2; fail=1; }
+  grep -q 'name: cfg-api-erpc-eu-v0-5-postgres' <<<"$rendered" || { echo "CNPG cluster must be <release>-postgres" >&2; fail=1; }
+  [ "$(count 'ttl: 168h')" -ge 1 ] || { echo "new instance cache policies must set ttl: 168h" >&2; fail=1; }
+  grep -q 'size: 128Gi' <<<"$rendered" || { echo "new instance data PVC must be 128Gi" >&2; fail=1; }
+  grep -q 'size: 32Gi' <<<"$rendered" || { echo "new instance WAL PVC must be 32Gi" >&2; fail=1; }
+  # Naming enforcement: a non-conforming release name must fail the render.
+  if helm template cfg-api-erpc "$chart" -f "$chart/ci/newinstance-values.yaml" >/dev/null 2>&1; then
+    echo "erpc.enforceNaming must reject a non-conforming release name" >&2; fail=1
+  fi
+  # TTL enforcement: a zero cache TTL must fail the render for an enforced instance.
+  if helm template cfg-api-erpc-eu-v0-5 "$chart" \
+       -f "$chart/ci/newinstance-values.yaml" --set erpc.database.evmJsonRpcCache.postgresql.finalizedTtl=0 >/dev/null 2>&1; then
+    echo "erpc.enforceNaming must reject a zero cache TTL" >&2; fail=1
+  fi
   [ "$fail" = 0 ] || exit 1
 fi
