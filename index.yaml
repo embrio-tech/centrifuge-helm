@@ -2131,6 +2131,16 @@ entries:
   centrifuge-api-v4-event-lake:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2026-11-10T13:02:04.216830558Z"
+    description: Centrifuge event-lake Producer (Envio indexer -> Redpanda). No CloudNative-PG.
+    digest: cc8835d42ddb9db0a5bfc36f602fa5d06b1d7fa1c71144cd7cda2fb6e1117cae
+    name: centrifuge-api-v4-event-lake
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-event-lake-0.2.17/centrifuge-api-v4-event-lake-0.2.17.tgz
+    version: 0.2.17
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2026-10-30T16:02:42.142061006Z"
     description: Centrifuge event-lake Producer (Envio indexer -> Redpanda). No CloudNative-PG.
     digest: 4562bbffd3cf7dd1d282273069d9cf7f6a4d1373b7ebb9b426c73dea7526d84d
@@ -2927,6 +2937,27 @@ entries:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-routes-0.1.1/centrifuge-api-v4-routes-0.1.1.tgz
     version: 0.1.1
   erpc:
+  - apiVersion: v2
+    appVersion: 0.5.0
+    created: "2026-11-10T13:02:35.253947784Z"
+    dependencies:
+    - alias: postgres
+      condition: postgres.enabled
+      name: cluster
+      repository: https://cloudnative-pg.github.io/charts
+      version: 0.3.1
+    - condition: redis.enabled
+      name: redis
+      repository: https://charts.bitnami.com/bitnami
+      version: 25.3.5
+    description: eRPC with optional Bitnami Redis (shared state) and CloudNative-PG
+      (EVM cache)
+    digest: 6b54b3e8396407e18925a5150eb73a40841ccca50334f604c1a7309b1bdd2216
+    name: erpc
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/erpc-0.1.58/erpc-0.1.58.tgz
+    version: 0.1.58
   - apiVersion: v2
     appVersion: 0.5.0
     created: "2026-11-10T08:09:33.496199591Z"
@@ -4186,4 +4217,4 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/redpanda-0.1.2/redpanda-0.1.2.tgz
     version: 0.1.2
-generated: "2026-11-10T08:09:37.262907721Z"
+generated: "2026-11-10T13:02:39.316512975Z"
