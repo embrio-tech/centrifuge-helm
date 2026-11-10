@@ -85,6 +85,10 @@ spec:
             logLevel: info
             server:
               maxTimeout: 180s
+              # Accept WebSocket upgrades (eth_subscribe/newHeads, newPendingTransactions,
+              # logs) on the HTTP port; consumers can use ws://…:4000. Off in legacy 0.0.64.
+              webSocket:
+                enabled: true
               trustedIPForwarders:
                 - 10.42.0.0/16
                 - 10.43.0.0/16
