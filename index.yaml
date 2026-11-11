@@ -2737,6 +2737,16 @@ entries:
   centrifuge-api-v4-query:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2026-11-11T13:38:04.177917256Z"
+    description: API v4 Query (read-only public-api). No CloudNative-PG and no migrations.
+    digest: bf729f5a5b6afbf14af3f03bda650b1f703cedb0faf2164956be31b9d593f1f8
+    name: centrifuge-api-v4-query
+    type: application
+    urls:
+    - https://github.com/embrio-tech/centrifuge-helm/releases/download/centrifuge-api-v4-query-0.1.14/centrifuge-api-v4-query-0.1.14.tgz
+    version: 0.1.14
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2026-10-27T18:09:58.775218117Z"
     description: API v4 Query (read-only public-api). No CloudNative-PG and no migrations.
     digest: 4dfe4b68267d890a43cafae9ff57a815363264b08278543d094fda8b3fdc809f
@@ -4217,4 +4227,4 @@ entries:
     urls:
     - https://github.com/embrio-tech/centrifuge-helm/releases/download/redpanda-0.1.2/redpanda-0.1.2.tgz
     version: 0.1.2
-generated: "2026-11-10T13:02:39.316512975Z"
+generated: "2026-11-11T13:38:25.246164709Z"
