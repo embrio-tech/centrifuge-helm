@@ -9,6 +9,12 @@
     "id": { "type": "string", "pattern": "^q-[0-9]{8}-[0-9]{2}$" },
     "projectionId": { "type": "string", "pattern": "^pj-[0-9]{8}-[0-9]{2}$" },
     "producerId": { "type": "string", "pattern": "^pr-[0-9]{8}-[0-9]{2}$" },
+    "producerMetricsTtlMs": {
+      "type": ["integer", "null"],
+      "minimum": 100,
+      "maximum": 60000,
+      "description": "Snapshot freshness window (ms) for Blockchain.indexingStatus. Only used when producerId is set; public-api clamps to 100..60000."
+    },
     "schema": { "type": "string", "pattern": "^pj_[0-9]{8}_[0-9]{2}$" },
     "databaseSecretName": {
       "type": "string",

@@ -87,6 +87,10 @@ spec:
             # the schema. The Producer image must serve /metrics on 8080.
             - name: PRODUCER_METRICS_URL
               value: {{ printf "http://cfg-api-v4-%s-%s-indexer:8080/metrics" .Values.environment .Values.producerId | quote }}
+            {{- with .Values.producerMetricsTtlMs }}
+            - name: PRODUCER_METRICS_TTL_MS
+              value: {{ . | quote }}
+            {{- end }}
             {{- end }}
             {{- range $key, $value := .Values.global.env }}
             - name: {{ $key }}

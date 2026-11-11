@@ -8,6 +8,10 @@ projectionId: ""
 # per-chain Blockchain.indexingStatus. Leave it unset and the field is not in the
 # schema, so existing releases and fixtures render unchanged.
 # producerId: pr-YYYYMMDD-NN
+# Optional. Snapshot freshness window (ms) for Blockchain.indexingStatus. Only
+# used when `producerId` is set; public-api clamps it to 100..60000 and defaults
+# to 1000. Leave it unset to keep the default.
+# producerMetricsTtlMs: 1000
 schema: ""
 # Pre-deployed Secret for the read-only query role (keys: uri). Never the owner
 # app Secret: read-only is enforced by the database role, not by this chart.
