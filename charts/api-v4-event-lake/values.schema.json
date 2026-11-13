@@ -43,10 +43,19 @@
       "required": ["urlTemplate"],
       "properties": {
         "urlTemplate": { "type": "string", "pattern": "^https?://.+%s" },
+        "webSocket": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable WebSocket head streaming. Off by default. When true, the chart emits ENVIO_RPC_WS_<chainId> for every selected chain (see wsUrlTemplate)."
+            }
+          }
+        },
         "wsUrlTemplate": {
           "type": "string",
           "pattern": "^(wss?://.+%s)?$",
-          "description": "Optional WebSocket template for ENVIO_RPC_WS_<chainId>. When empty it is derived from urlTemplate by swapping the scheme (http->ws, https->wss), since the in-cluster eRPC serves WS on the same port and path as HTTP."
+          "description": "Optional WebSocket base template for ENVIO_RPC_WS_<chainId>. Used only when webSocket.enabled is true; it overrides the mapping derived from urlTemplate (http->ws, https->wss)."
         }
       }
     },

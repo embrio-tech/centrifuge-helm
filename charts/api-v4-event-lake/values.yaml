@@ -30,11 +30,15 @@ imagePullSecrets: []
 # region (cfg-api-erpc on eu, cfg-api-erpc-us on us).
 erpc:
   urlTemplate: ""
-  # Optional WebSocket template for ENVIO_RPC_WS_<chainId> (`%s` is the chain id).
-  # Leave empty to derive it from urlTemplate by swapping the scheme
-  # (http:// -> ws://, https:// -> wss://): the in-cluster eRPC serves WebSocket
-  # upgrades on the same port and path as HTTP, so origination streams heads over
-  # `eth_subscribe("newHeads")` out of the box. Set it only when WS lives elsewhere.
+  # WebSocket head streaming is opt-in, the same gate as the erpc chart's
+  # server.webSocket.enabled. Off by default: no Producer streams over WebSocket
+  # until an Environment sets enabled: true.
+  webSocket:
+    enabled: false
+  # Optional WebSocket base template for ENVIO_RPC_WS_<chainId> (`%s` is the chain
+  # id). Used only when webSocket.enabled is true. When empty, the chart maps
+  # urlTemplate to its per-chain ws form (http:// -> ws://, https:// -> wss://); the
+  # in-cluster eRPC serves WebSocket upgrades on the same port and path as HTTP.
   wsUrlTemplate: ""
 
 global:

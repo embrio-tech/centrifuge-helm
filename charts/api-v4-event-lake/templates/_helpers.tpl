@@ -71,21 +71,28 @@ so the Producer object stays the only source for them.
 {{- fail (printf "SELECTED_NETWORKS has duplicate chain ids: %s" $selected) }}
 {{- end }}
 {{- $_ := set $data "SELECTED_NETWORKS" $selected }}
-{{- /* WebSocket endpoint for head streaming. Explicit erpc.wsUrlTemplate wins;
-       otherwise derive it from the HTTP urlTemplate by swapping the scheme, so the
-       in-cluster eRPC (WS on the same port/path as HTTP) works with no extra config. */}}
-{{- $wsTemplate := $.Values.erpc.wsUrlTemplate -}}
+{{- /* WebSocket endpoints (ENVIO_RPC_WS_<chainId>) are opt-in, mirroring the erpc
+       chart's server.webSocket.enabled. When enabled, map the eRPC base URL to its
+       per-chain ws form (http:// -> ws://, https:// -> wss://); an explicit
+       erpc.wsUrlTemplate overrides the mapping. Off by default, so no Producer
+       streams over WebSocket until an Environment sets erpc.webSocket.enabled. */}}
+{{- $wsTemplate := "" -}}
+{{- if dig "webSocket" "enabled" false $.Values.erpc }}
+{{- $wsTemplate = $.Values.erpc.wsUrlTemplate -}}
 {{- if not $wsTemplate -}}
 {{- $wsTemplate = regexReplaceAll "^https://" (regexReplaceAll "^http://" $.Values.erpc.urlTemplate "ws://") "wss://" -}}
+{{- end -}}
 {{- end }}
 {{- range $parts }}
 {{- $key := printf "ENVIO_RPC_URL_%s" . }}
 {{- if not (hasKey $data $key) }}
 {{- $_ := set $data $key (printf $.Values.erpc.urlTemplate .) }}
 {{- end }}
+{{- if $wsTemplate }}
 {{- $wsKey := printf "ENVIO_RPC_WS_%s" . }}
 {{- if not (hasKey $data $wsKey) }}
 {{- $_ := set $data $wsKey (printf $wsTemplate .) }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- toYaml $data }}

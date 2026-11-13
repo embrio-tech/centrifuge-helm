@@ -154,6 +154,12 @@ if [ "$1" = "api-v4-event-lake" ]; then
   producer_id_rendered="$(helm template lint-api-v4-event-lake "$chart" -f "$chart/ci/producer-id-generation-values.yaml" --kube-version "$kube_version")"
   value_after ENVIO_PG_SCHEMA "$producer_id_rendered" pr_20261013_01 || { echo "Producer-id generation must be the Envio schema with - replaced by _" >&2; fail=1; }
   value_after INDEX_GENERATION "$producer_id_rendered" pr-20261013-01 || { echo "Producer-id generation must be INDEX_GENERATION verbatim" >&2; fail=1; }
+  # WebSocket endpoints are opt-in, the same gate as the erpc chart's
+  # server.webSocket.enabled: absent by default, mapped per chain only when enabled.
+  [ "$(count 'ENVIO_RPC_WS_')" = 0 ] || { echo "WebSocket env must stay absent unless erpc.webSocket.enabled is true" >&2; fail=1; }
+  ws_rendered="$(helm template lint-api-v4-event-lake "$chart" -f "$chart/ci/report-values.yaml" --set erpc.webSocket.enabled=true --kube-version "$kube_version")"
+  [ "$(grep -c -F 'ENVIO_RPC_WS_' <<<"$ws_rendered" || true)" = 3 ] || { echo "erpc.webSocket.enabled must emit one ws endpoint per selected chain" >&2; fail=1; }
+  grep -q -F 'ENVIO_RPC_WS_11155111: ws://cfg-api-erpc:4000/main/evm/11155111' <<<"$ws_rendered" || { echo "erpc.webSocket.enabled must map urlTemplate to its per-chain ws form" >&2; fail=1; }
   [ "$fail" = 0 ] || exit 1
 fi
 
