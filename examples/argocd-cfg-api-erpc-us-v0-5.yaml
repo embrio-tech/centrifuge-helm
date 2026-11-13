@@ -42,7 +42,7 @@ spec:
           cluster:
             instances: 1
             storage:
-              size: 64Gi
+              size: 128Gi
               storageClass: perf3
             walStorage:
               enabled: true
