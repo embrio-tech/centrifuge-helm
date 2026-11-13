@@ -79,34 +79,72 @@ spec:
             logLevel: info
             server:
               maxTimeout: 180s
+              # Drain in-flight work before exit; the chart's 180s grace covers both waits.
+              waitBeforeShutdown: 30s
+              waitAfterShutdown: 30s
+              # Never echo upstream URLs/keys back to callers in error.data.
+              includeErrorDetails: false
               # Accept WebSocket upgrades (eth_subscribe/newHeads, newPendingTransactions,
               # logs) on the HTTP port; consumers can use ws://…:4000. Off in legacy 0.0.64.
               webSocket:
                 enabled: true
+                # Instance-wide caps (0 = unlimited). Bounds a client opening many
+                # connections; per-connection caps keep their defaults.
+                maxConnections: 200
+                maxConnectionsPerIP: 50
+                maxSubscriptions: 5000
+              # Only the ingress may set the real client IP. Trusting the pod CIDRs here
+              # let any pod spoof X-Forwarded-For past auth.allowedCIDRs.
               trustedIPForwarders:
-                - 10.42.0.0/16
-                - 10.43.0.0/16
                 - 192.168.42.0/24
               trustedIPHeaders:
                 - X-Forwarded-For
                 - X-Real-Ip
+            rateLimiters:
+              budgets:
+                # Outbound provider budgets, attached per vendor in the provider
+                # overrides below. Generous ceilings; rateLimitAutoTune backs off
+                # on 429/error rate and recovers on its own.
+                - id: quicknode-global
+                  rules:
+                    - method: "*"
+                      maxCount: 1000
+                      period: second
+                - id: alchemy-global
+                  rules:
+                    - method: "*"
+                      maxCount: 1000
+                      period: second
+                - id: drpc-global
+                  rules:
+                    - method: "*"
+                      maxCount: 1000
+                      period: second
             projects:
               - id: main
                 auth:
                   strategies:
                     - type: network
                       network:
+                        # Both pod CIDRs reach eRPC directly (source IP = pod IP);
+                        # only the ingress is trusted to rewrite the client IP.
                         allowedCIDRs:
                           - 10.42.0.0/16
+                          - 10.43.0.0/16
                         trustedProxies:
                           - 192.168.42.0/24
-                          - 10.42.0.0/16
-                          - 10.43.0.0/16
                 # Project-wide data integrity (0.5.0). Applies to every network; a
                 # network may override per check. Replaces the deprecated
                 # directiveDefaults.validate* / enforceLogIndexStrictIncrements
                 # flags (which only warn under 0.5.0 and change semantics).
+                # 0.5.0: `level` is the front door (~20 free intrinsic checks);
+                # `checks` tunes individual rules above it. Start in observeOnly so
+                # violations are measured, not rejected; promote once
+                # erpc_integrity_check_total{outcome="would_reject"} is quiet.
+                # HyperEVM (999) overrides the root-recompute checks below.
                 integrity:
+                  level: intrinsic
+                  observeOnly: true
                   checks:
                     bloomMatch:
                       enabled: true
@@ -115,31 +153,134 @@ spec:
                     logIndexContiguity:
                       enabled: true
                 networkDefaults:
+                  # Finality-split failsafe (0.5.0). Realtime/unfinalized needs a
+                  # NON-ZERO retry delay so shared-state propagation can win the race;
+                  # hedging hides a slow provider on the tail. Finalized reads retry
+                  # immediately. See docs "networks" worked example #1.
                   failsafe:
                     - matchMethod: "eth_getLogs"
+                      matchFinality: [realtime, unfinalized]
                       timeout:
                         duration: 180s
+                      hedge:
+                        quantile: 0.95
+                        maxCount: 1
+                        minDelay: 500ms
+                        maxDelay: 10s
                       retry:
-                        maxAttempts: 3
+                        maxAttempts: 4
+                        delay: 50ms
+                    - matchMethod: "eth_getLogs"
+                      matchFinality: [finalized, unknown]
+                      timeout:
+                        duration: 180s
+                      hedge:
+                        quantile: 0.95
+                        maxCount: 1
+                        minDelay: 500ms
+                        maxDelay: 10s
+                      retry:
+                        maxAttempts: 4
                         delay: 0ms
-                      hedge: null
+                    - matchMethod: "eth_call"
+                      hedge:
+                        quantile: 0.95
+                        maxCount: 1
+                        minDelay: 500ms
+                        maxDelay: 10s
+                      retry:
+                        maxAttempts: 4
+                        delay: 0ms
                     - matchMethod: "*"
                       timeout:
                         duration: 30s
                       retry:
-                        maxAttempts: 3
-                        delay: 100ms
-                      hedge: null
+                        maxAttempts: 4
+                        delay: 50ms
                   evm:
                     getLogsSplitOnError: true
                     getLogsMaxAllowedRange: 10000
                     getLogsSplitConcurrency: 4
+                    # Serve "latest" only once a majority of upstreams agree on the
+                    # tip, so a client never gets a block only one provider has.
+                    servedTip:
+                      quorum: majority
+                    # Indexers send fromBlock:"0x0" in eth_subscribe logs filters;
+                    # strip it so the live stream doesn't fail on pruned nodes.
+                    stripSubscribeFromBlockZero: true
                   directiveDefaults:
                     enforceHighestBlock: true
                     enforceGetLogsBlockRange: true
+                  # Rotate eth_subscribe across the Alchemy, dRPC and QuickNode WS
+                  # twins. The WS upstreams are ignoreMethods:["*"] except
+                  # subscribe, so this order only affects subscriptions. The order
+                  # advances hourly (one upstream re-subscribe per hour) so
+                  # subscription load also rotates. Networks with their own
+                  # selectionPolicy (Hyperliquid, Avalanche) keep it.
+                  selectionPolicy:
+                    evalInterval: 15s
+                    evalScope: network
+                    evalFunc: |
+                      (upstreams, ctx) => {
+                        const ranked = upstreams
+                          .removeCordoned()
+                          .excludeIf(all(samplesAbove(10), errorRateAbove(0.7)))
+                          .excludeIf(all(samplesAbove(10), throttleRateAbove(0.4)))
+                          .excludeIf(any(all(samplesAbove(20), latencyAbove(3000), latencyDeviationAbove(3, { mode: 'majority' })), latencyAbove(10000)))
+                          .excludeIf(any(blockNumberLagAbove(16), blockSecondsLagAbove(30)), { probe: false })
+                          .whenEmpty(() => upstreams)
+                          .preferTag('!tier:fallback', { minHealthy: 1, fallback: 'tier:fallback' })
+                          .sortByScore(PREFER_FASTEST)
+                          .probeExcluded({ sampleRate: 0.1, minSamples: 10, minSamplesWindow: '60s', maxConcurrent: 4, timeout: '10s' });
+                        // Spread across providers every hour and rotate the primary vendor
+                        // hourly, so no chain pins to one vendor. Region offset 0 (EU).
+                        // If a provider is excluded (errors/throttle/latency) or only one remains,
+                        // both regions fall back to it — an accepted degradation exception.
+                        // Non-WS upstreams are grouped by vendor and the vendor order is
+                        // advanced by slot, so the two clusters are never on the same
+                        // vendor for the same chain in the same hour. WS twins use the same
+                        // slot so subscription ingress rotates too.
+                        const chain = Number(String(ctx.network || '').replace(/\D/g, '')) || 0;
+                        const hour = Math.floor((ctx.now || 0) / 3600000);
+                        const baseSlot = chain + hour;
+                        const slot = baseSlot + 0; // region applied once, at vendor start
+                        const rotated = ranked.rotateBy(baseSlot);
+                        const isWs = (u) => typeof u.id === 'string' && u.id.indexOf('ws-') === 0;
+                        const vendorOf = (u) => {
+                          const id = typeof u.id === 'string' ? u.id : '';
+                          if (id.indexOf('quicknode-') === 0 || id.indexOf('hl-quicknode') === 0) return 'quicknode';
+                          if (id.indexOf('alchemy-') === 0 || id.indexOf('hl-alchemy') === 0) return 'alchemy';
+                          if (id.indexOf('drpc-') === 0) return 'drpc';
+                          const ep = typeof u.endpoint === 'string' ? u.endpoint : '';
+                          if (ep.indexOf('alchemy') !== -1) return 'alchemy';
+                          if (ep.indexOf('quiknode') !== -1 || ep.indexOf('quicknode') !== -1) return 'quicknode';
+                          if (ep.indexOf('drpc') !== -1) return 'drpc';
+                          return 'other';
+                        };
+                        const vKeys = [];
+                        const vItems = [];
+                        for (const u of rotated.filter((x) => !isWs(x))) {
+                          const v = vendorOf(u);
+                          let idx = vKeys.indexOf(v);
+                          if (idx === -1) { vKeys.push(v); vItems.push([]); idx = vKeys.length - 1; }
+                          vItems[idx].push(u);
+                        }
+                        const vStart = vKeys.length ? ((slot % vKeys.length) + vKeys.length) % vKeys.length : 0;
+                        const rest = [];
+                        for (let i = 0; i < vKeys.length; i++) rest.push(...vItems[(vStart + i) % vKeys.length]);
+                        const wsGroups = ['ws-alchemy-', 'ws-drpc-', 'ws-quicknode-']
+                          .map((prefix) => rotated.filter((u) => typeof u.id === 'string' && u.id.indexOf(prefix) === 0))
+                          .filter((group) => group.length > 0);
+                        const wsStart = wsGroups.length ? ((slot % wsGroups.length) + wsGroups.length) % wsGroups.length : 0;
+                        const orderedWs = [];
+                        for (let i = 0; i < wsGroups.length; i++) orderedWs.push(...wsGroups[(wsStart + i) % wsGroups.length]);
+                        return rest.concat(orderedWs);
+                      }
                 upstreamDefaults:
                   evm:
-                    statePollerInterval: 2s
+                    # WS heads are pushed (server.webSocket enabled); 2s polling across
+                    # every upstream/chain is avoidable load. Provider default is 10s.
+                    statePollerInterval: 10s
                   failsafe:
                     - matchMethod: "eth_getLogs"
                       timeout:
@@ -158,6 +299,43 @@ spec:
                         backoffFactor: 2
                       hedge: null
                 networks:
+                  # Monad (143): historical eth_getLogs/eth_call are slow and the vendors
+                  # cap the log range, so the explicit upstreams below split eth_getLogs
+                  # at 1000 blocks and the network allows a long historical timeout. It
+                  # inherits the rotating policy.
+                  - architecture: evm
+                    evm:
+                      chainId: 143
+                      # Client hard cap. eRPC rejects a larger eth_getLogs range with
+                      # ErrGetLogsExceededMaxAllowedRange (HTTP 413) before any split.
+                      # This is not the split trigger: each upstream's
+                      # getLogsAutoSplittingRangeThreshold does the split.
+                      getLogsMaxAllowedRange: 10000
+                      fallbackFinalityDepth: 10
+                    failsafe:
+                      - matchMethod: "eth_getLogs"
+                        timeout:
+                          duration: 300s
+                        hedge:
+                          quantile: 0.95
+                          maxCount: 1
+                          minDelay: 500ms
+                          maxDelay: 10s
+                        retry:
+                          maxAttempts: 4
+                          delay: 50ms
+                      - matchMethod: "eth_call"
+                        timeout:
+                          duration: 120s
+                        retry:
+                          maxAttempts: 4
+                          delay: 0ms
+                      - matchMethod: "*"
+                        timeout:
+                          duration: 30s
+                        retry:
+                          maxAttempts: 4
+                          delay: 50ms
                   - architecture: evm
                     evm:
                       chainId: 999
@@ -195,8 +373,13 @@ spec:
                       evalFunc: |
                         (upstreams, ctx) => {
                           const method = ctx.method;
-                          const primaryId = "hl-quicknode-evm";
-                          const fallbackId = "hl-alchemy-evm";
+                          // Rotate the live primary hourly between QuickNode and Alchemy so HYPE
+                          // CU is shared. Block/log requests still pin to the single chosen
+                          // primary per tick, keeping block + logs on one vendor.
+                          const hourSlot = Math.floor(Date.now() / 3600000);
+                          const qnFirst = (hourSlot + 0) % 2 === 0;
+                          const primaryId = qnFirst ? "hl-quicknode-evm" : "hl-alchemy-evm";
+                          const fallbackId = qnFirst ? "hl-alchemy-evm" : "hl-quicknode-evm";
 
                           const maxErrorRate = 0.7;
                           const maxBlockHeadLag = 16;
@@ -245,7 +428,7 @@ spec:
                             || method === "eth_getLogs";
 
                           // === HYPERLIQUID LIVE MODE (default) ===
-                          // QN /evm primary; Alchemy second in pool (full HL history, failover on QN errors).
+                          // QuickNode and Alchemy alternate hourly as the live primary (full HL history, the other is failover).
                           // Nanoreth excluded from block/log methods. (Historically getLogs({ blockHash })
                           // skipped blockAvailability; re-verify on the 0.5.0 canary before relaxing.)
                           // Block + logs must come from ONE upstream: returning a single-element list (no fallback
@@ -369,7 +552,7 @@ spec:
                           }
 
                           const hourSlot = Math.floor(Date.now() / 3600000);
-                          const preferredIdx = hourSlot % present.length;
+                          const preferredIdx = (hourSlot + 0) % present.length;
                           let activePrimary = null;
                           for (let i = 0; i < present.length; i++) {
                             const v = present[(preferredIdx + i) % present.length];
@@ -492,6 +675,59 @@ spec:
                       chainId: 143
                     allowMethods:
                       - eth_call
+                  # Monad eth_getLogs: the vendors cap the log range, so split proactively
+                  # at 1000 blocks per upstream. The network hard cap stays at the project
+                  # default (it is a client limit, never a split trigger). These are explicit
+                  # because a per-chain provider override would overlap "evm:*", whose first
+                  # match is nondeterministic.
+                  - id: monad-alchemy
+                    endpoint: 'https://monad-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                    rateLimitBudget: alchemy-global
+                    rateLimitAutoTune:
+                      enabled: true
+                      adjustmentPeriod: 30s
+                      decreaseFactor: 0.7
+                      minBudget: 1
+                    routing:
+                      scoreMultipliers:
+                        - network: ""
+                          method: ""
+                          overall: 0.33
+                    evm:
+                      chainId: 143
+                      getLogsAutoSplittingRangeThreshold: 1000
+                  - id: monad-quicknode
+                    endpoint: 'https://${QUICKNODE_WSS_NAME}.monad-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                    rateLimitBudget: quicknode-global
+                    rateLimitAutoTune:
+                      enabled: true
+                      adjustmentPeriod: 30s
+                      decreaseFactor: 0.7
+                      minBudget: 1
+                    routing:
+                      scoreMultipliers:
+                        - network: ""
+                          method: ""
+                          overall: 1
+                    evm:
+                      chainId: 143
+                      getLogsAutoSplittingRangeThreshold: 1000
+                  - id: monad-drpc
+                    endpoint: 'https://lb.drpc.live/monad-mainnet/${DRPC_API_KEY}'
+                    rateLimitBudget: drpc-global
+                    rateLimitAutoTune:
+                      enabled: true
+                      adjustmentPeriod: 30s
+                      decreaseFactor: 0.7
+                      minBudget: 1
+                    routing:
+                      scoreMultipliers:
+                        - network: ""
+                          method: ""
+                          overall: 1
+                    evm:
+                      chainId: 143
+                      getLogsAutoSplittingRangeThreshold: 1000
                   # WebSocket upstreams for eth_subscribe. eRPC only serves subscriptions through
                   # an upstream whose endpoint is ws://|wss:// (GetWsUpstreams), and the vendors
                   # above generate HTTP-only endpoints, so the Alchemy and dRPC WS twins are explicit here.
@@ -678,6 +914,123 @@ spec:
                     allowMethods: ["eth_subscribe", "eth_unsubscribe"]
                     evm:
                       chainId: 421614
+                  # QuickNode multichain endpoint: one WS twin per chain, endpoint
+                  # wss://${QUICKNODE_WSS_NAME}.<quicknode-network-slug>.quiknode.pro/${QUICKNODE_WSS_KEY}
+                  # (NAME=the endpoint name, KEY=the token). Subscription-only. Requires
+                  # QUICKNODE_WSS_NAME + QUICKNODE_WSS_KEY in the eRPC secret; verify each chain's
+                  # QuickNode network slug, and drop any chain the endpoint does not serve.
+                  - id: ws-quicknode-1
+                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.ethereum-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                    rateLimitBudget: quicknode-global
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 1
+                  - id: ws-quicknode-10
+                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.optimism-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                    rateLimitBudget: quicknode-global
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 10
+                  - id: ws-quicknode-56
+                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.bsc-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                    rateLimitBudget: quicknode-global
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 56
+                  - id: ws-quicknode-143
+                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.monad-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                    rateLimitBudget: quicknode-global
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 143
+                  - id: ws-quicknode-196
+                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.xlayer-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                    rateLimitBudget: quicknode-global
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 196
+                  - id: ws-quicknode-998
+                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.hyperliquid-testnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                    rateLimitBudget: quicknode-global
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 998
+                  - id: ws-quicknode-999
+                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.hyperliquid-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                    rateLimitBudget: quicknode-global
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 999
+                  - id: ws-quicknode-1672
+                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.pharos-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                    rateLimitBudget: quicknode-global
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 1672
+                  - id: ws-quicknode-5042
+                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.arc-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                    rateLimitBudget: quicknode-global
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 5042
+                  - id: ws-quicknode-8453
+                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.base-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                    rateLimitBudget: quicknode-global
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 8453
+                  - id: ws-quicknode-84532
+                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.base-sepolia.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                    rateLimitBudget: quicknode-global
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 84532
+                  - id: ws-quicknode-42161
+                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.arbitrum-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                    rateLimitBudget: quicknode-global
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 42161
+                  - id: ws-quicknode-43114
+                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.avalanche-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                    rateLimitBudget: quicknode-global
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 43114
+                  - id: ws-quicknode-98866
+                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.plume-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                    rateLimitBudget: quicknode-global
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 98866
+                  - id: ws-quicknode-11155111
+                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.ethereum-sepolia.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                    rateLimitBudget: quicknode-global
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 11155111
+                  - id: ws-quicknode-421614
+                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.arbitrum-sepolia.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                    rateLimitBudget: quicknode-global
+                    ignoreMethods: ["*"]
+                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                    evm:
+                      chainId: 421614
                 providers:
                   - vendor: quicknode
                     settings:
@@ -685,11 +1038,18 @@ spec:
                     ignoreNetworks:
                       - evm:999
                       - evm:998
+                      - evm:143
                     overrides:
-                      "evm:143":
-                        ignoreMethods:
-                          - eth_call
+                      # One non-overlapping key: provider override first-match is Go map
+                      # order, so mixing "evm:*" with a specific key is nondeterministic
+                      # across restarts. The former evm:143 eth_call exclusion is dropped.
                       "evm:*":
+                        rateLimitBudget: quicknode-global
+                        rateLimitAutoTune:
+                          enabled: true
+                          adjustmentPeriod: 30s
+                          decreaseFactor: 0.7
+                          minBudget: 1
                         routing:
                           scoreMultipliers:
                             - network: ""
@@ -702,11 +1062,15 @@ spec:
                       - evm:999
                       - evm:998
                       - evm:5042
+                      - evm:143
                     overrides:
-                      "evm:143":
-                        ignoreMethods:
-                          - eth_call
                       "evm:*":
+                        rateLimitBudget: alchemy-global
+                        rateLimitAutoTune:
+                          enabled: true
+                          adjustmentPeriod: 30s
+                          decreaseFactor: 0.7
+                          minBudget: 1
                         routing:
                           scoreMultipliers:
                             - network: ""
@@ -718,11 +1082,15 @@ spec:
                     ignoreNetworks:
                       - evm:999
                       - evm:5042
+                      - evm:143
                     overrides:
-                      "evm:143":
-                        ignoreMethods:
-                          - eth_call
                       "evm:*":
+                        rateLimitBudget: drpc-global
+                        rateLimitAutoTune:
+                          enabled: true
+                          adjustmentPeriod: 30s
+                          decreaseFactor: 0.7
+                          minBudget: 1
                         routing:
                           scoreMultipliers:
                             - network: ""
