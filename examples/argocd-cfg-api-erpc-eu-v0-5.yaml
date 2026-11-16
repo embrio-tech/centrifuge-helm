@@ -54,6 +54,16 @@ spec:
           replicaCount: 2
           enforceNaming: true
           lineLabel: v0-5
+          # Prometheus ServiceMonitor for kube-prometheus-stack (namespace monitoring).
+          # serviceMonitorSelector and serviceMonitorNamespaceSelector are empty on both
+          # clusters, so Prometheus selects this monitor in the cfg-api namespace; the
+          # release label matches the kube-prometheus-stack convention.
+          metrics:
+            serviceMonitor:
+              enabled: true
+              interval: 15s
+              labels:
+                release: kube-prometheus-stack
           image:
             tag: "0.5.0"
           database:
@@ -84,10 +94,14 @@ spec:
               waitAfterShutdown: 30s
               # Never echo upstream URLs/keys back to callers in error.data.
               includeErrorDetails: false
+              # Emit per-response cost headers (X-ERPC-Calls, X-ERPC-Billable,
+              # X-ERPC-Credits, X-ERPC-Credits-Total, X-ERPC-Methods, X-ERPC-Network-Id).
+              # Credits use the vendor CU tables (Alchemy, QuickNode). Opt-in.
+              costHeaders: true
               # Accept WebSocket upgrades (eth_subscribe/newHeads, newPendingTransactions,
               # logs) on the HTTP port; consumers can use ws://…:4000. Off in legacy 0.0.64.
               webSocket:
-                enabled: true
+                enabled: false
                 # Instance-wide caps (0 = unlimited). Bounds a client opening many
                 # connections; per-connection caps keep their defaults.
                 maxConnections: 200
@@ -154,19 +168,16 @@ spec:
                       enabled: true
                 networkDefaults:
                   # Finality-split failsafe (0.5.0). Realtime/unfinalized needs a
-                  # NON-ZERO retry delay so shared-state propagation can win the race;
-                  # hedging hides a slow provider on the tail. Finalized reads retry
-                  # immediately. See docs "networks" worked example #1.
+                  # NON-ZERO retry delay so shared-state propagation can win the race.
+                  # Finalized reads retry immediately. Hedging is disabled, so eRPC
+                  # never sends a second request to another provider. See docs
+                  # "networks" worked example #1.
                   failsafe:
                     - matchMethod: "eth_getLogs"
                       matchFinality: [realtime, unfinalized]
                       timeout:
                         duration: 180s
-                      hedge:
-                        quantile: 0.95
-                        maxCount: 1
-                        minDelay: 500ms
-                        maxDelay: 10s
+                      hedge: null
                       retry:
                         maxAttempts: 4
                         delay: 50ms
@@ -174,20 +185,12 @@ spec:
                       matchFinality: [finalized, unknown]
                       timeout:
                         duration: 180s
-                      hedge:
-                        quantile: 0.95
-                        maxCount: 1
-                        minDelay: 500ms
-                        maxDelay: 10s
+                      hedge: null
                       retry:
                         maxAttempts: 4
                         delay: 0ms
                     - matchMethod: "eth_call"
-                      hedge:
-                        quantile: 0.95
-                        maxCount: 1
-                        minDelay: 500ms
-                        maxDelay: 10s
+                      hedge: null
                       retry:
                         maxAttempts: 4
                         delay: 0ms
@@ -211,12 +214,12 @@ spec:
                   directiveDefaults:
                     enforceHighestBlock: true
                     enforceGetLogsBlockRange: true
-                  # Rotate eth_subscribe across the Alchemy, dRPC and QuickNode WS
-                  # twins. The WS upstreams are ignoreMethods:["*"] except
-                  # subscribe, so this order only affects subscriptions. The order
-                  # advances hourly (one upstream re-subscribe per hour) so
-                  # subscription load also rotates. Networks with their own
-                  # selectionPolicy (Hyperliquid, Avalanche) keep it.
+                  # Rotate the primary vendor across QuickNode, Alchemy and dRPC
+                  # every hour. The fastest, highest-volume chains get distinct
+                  # phases, so the top three do not share a vendor in the same
+                  # hour. WS twins use the same slot, so subscription ingress
+                  # rotates too. Networks with their own selectionPolicy
+                  # (Hyperliquid, Avalanche) keep it.
                   selectionPolicy:
                     evalInterval: 15s
                     evalScope: network
@@ -232,19 +235,21 @@ spec:
                           .preferTag('!tier:fallback', { minHealthy: 1, fallback: 'tier:fallback' })
                           .sortByScore(PREFER_FASTEST)
                           .probeExcluded({ sampleRate: 0.1, minSamples: 10, minSamplesWindow: '60s', maxConcurrent: 4, timeout: '10s' });
-                        // Spread across providers every hour and rotate the primary vendor
-                        // hourly, so no chain pins to one vendor. Region offset 0 (EU).
-                        // If a provider is excluded (errors/throttle/latency) or only one remains,
-                        // both regions fall back to it — an accepted degradation exception.
-                        // Non-WS upstreams are grouped by vendor and the vendor order is
-                        // advanced by slot, so the two clusters are never on the same
-                        // vendor for the same chain in the same hour. WS twins use the same
-                        // slot so subscription ingress rotates too.
+                        // Fastest and highest-volume chains first. The index is the
+                        // hourly vendor phase, so the first three chains in the list
+                        // use three different vendors in the same hour. A chain not in
+                        // the list falls back to its chain id.
+                        // Region offset 0 (EU), 1 (US): both regions never use the
+                        // same vendor for the same chain in the same hour.
+                        const FAST_CHAINS = [
+                          42161, 143, 56, 999, 196, 8453, 10, 43114,
+                          5042, 98866, 1672, 1, 11155111, 421614
+                        ];
                         const chain = Number(String(ctx.network || '').replace(/\D/g, '')) || 0;
+                        const fastIdx = FAST_CHAINS.indexOf(chain);
+                        const phase = fastIdx === -1 ? chain : fastIdx;
                         const hour = Math.floor((ctx.now || 0) / 3600000);
-                        const baseSlot = chain + hour;
-                        const slot = baseSlot + 0; // region applied once, at vendor start
-                        const rotated = ranked.rotateBy(baseSlot);
+                        const slot = phase + hour + 0; // region applied once
                         const isWs = (u) => typeof u.id === 'string' && u.id.indexOf('ws-') === 0;
                         const vendorOf = (u) => {
                           const id = typeof u.id === 'string' ? u.id : '';
@@ -257,19 +262,26 @@ spec:
                           if (ep.indexOf('drpc') !== -1) return 'drpc';
                           return 'other';
                         };
-                        const vKeys = [];
-                        const vItems = [];
-                        for (const u of rotated.filter((x) => !isWs(x))) {
+                        // Fixed vendor order keeps the phase mapping identical on
+                        // every chain and in both regions. A vendor that health
+                        // filters removed does not take a slot; the remaining
+                        // vendors rotate instead (accepted degradation).
+                        const VENDOR_ORDER = ['quicknode', 'alchemy', 'drpc'];
+                        const present = VENDOR_ORDER.filter((v) =>
+                          ranked.some((u) => !isWs(u) && vendorOf(u) === v)
+                        );
+                        for (const u of ranked) {
                           const v = vendorOf(u);
-                          let idx = vKeys.indexOf(v);
-                          if (idx === -1) { vKeys.push(v); vItems.push([]); idx = vKeys.length - 1; }
-                          vItems[idx].push(u);
+                          if (!isWs(u) && present.indexOf(v) === -1) present.push(v);
                         }
-                        const vStart = vKeys.length ? ((slot % vKeys.length) + vKeys.length) % vKeys.length : 0;
+                        const vStart = present.length ? ((slot % present.length) + present.length) % present.length : 0;
                         const rest = [];
-                        for (let i = 0; i < vKeys.length; i++) rest.push(...vItems[(vStart + i) % vKeys.length]);
+                        for (let i = 0; i < present.length; i++) {
+                          const v = present[(vStart + i) % present.length];
+                          rest.push(...ranked.filter((u) => !isWs(u) && vendorOf(u) === v));
+                        }
                         const wsGroups = ['ws-alchemy-', 'ws-drpc-', 'ws-quicknode-']
-                          .map((prefix) => rotated.filter((u) => typeof u.id === 'string' && u.id.indexOf(prefix) === 0))
+                          .map((prefix) => ranked.filter((u) => typeof u.id === 'string' && u.id.indexOf(prefix) === 0))
                           .filter((group) => group.length > 0);
                         const wsStart = wsGroups.length ? ((slot % wsGroups.length) + wsGroups.length) % wsGroups.length : 0;
                         const orderedWs = [];
@@ -316,11 +328,7 @@ spec:
                       - matchMethod: "eth_getLogs"
                         timeout:
                           duration: 300s
-                        hedge:
-                          quantile: 0.95
-                          maxCount: 1
-                          minDelay: 500ms
-                          maxDelay: 10s
+                        hedge: null
                         retry:
                           maxAttempts: 4
                           delay: 50ms
@@ -376,8 +384,14 @@ spec:
                           // Rotate the live primary hourly between QuickNode and Alchemy so HYPE
                           // CU is shared. Block/log requests still pin to the single chosen
                           // primary per tick, keeping block + logs on one vendor.
-                          const hourSlot = Math.floor(Date.now() / 3600000);
-                          const qnFirst = (hourSlot + 0) % 2 === 0;
+                          const FAST_CHAINS = [
+                            42161, 143, 56, 999, 196, 8453, 10, 43114,
+                            5042, 98866, 1672, 1, 11155111, 421614
+                          ];
+                          const fastIdx = FAST_CHAINS.indexOf(999);
+                          const phase = fastIdx === -1 ? 999 : fastIdx;
+                          const hourSlot = Math.floor((ctx.now || 0) / 3600000);
+                          const qnFirst = (phase + hourSlot + 0) % 2 === 0;
                           const primaryId = qnFirst ? "hl-quicknode-evm" : "hl-alchemy-evm";
                           const fallbackId = qnFirst ? "hl-alchemy-evm" : "hl-quicknode-evm";
 
@@ -505,6 +519,22 @@ spec:
                     evm:
                       chainId: 5042
                       fallbackFinalityDepth: 10
+                  # Robinhood Chain (4663, Arbitrum Orbit), Linea (59144, zk L2) and ADI
+                  # (36900, zk L2) are in the mainnet Producer's SELECTED_NETWORKS but had
+                  # no network here, so eRPC answered 404 and the Producer crash-looped.
+                  # Each needs a network entry and an explicit upstream below.
+                  - architecture: evm
+                    evm:
+                      chainId: 4663
+                      fallbackFinalityDepth: 20
+                  - architecture: evm
+                    evm:
+                      chainId: 59144
+                      fallbackFinalityDepth: 10
+                  - architecture: evm
+                    evm:
+                      chainId: 36900
+                      fallbackFinalityDepth: 10
                   # Avalanche (43114): provider-generated QN/Alchemy/dRPC. One coherent
                   # primary per hour so block + getLogs never mix vendors (Ponder/viem).
                   # evalScope:network evaluates method as "*", so the policy always
@@ -551,8 +581,14 @@ spec:
                             return avax;
                           }
 
-                          const hourSlot = Math.floor(Date.now() / 3600000);
-                          const preferredIdx = (hourSlot + 0) % present.length;
+                          const FAST_CHAINS = [
+                            42161, 143, 56, 999, 196, 8453, 10, 43114,
+                            5042, 98866, 1672, 1, 11155111, 421614
+                          ];
+                          const fastIdx = FAST_CHAINS.indexOf(43114);
+                          const phase = fastIdx === -1 ? 43114 : fastIdx;
+                          const hourSlot = Math.floor((ctx.now || 0) / 3600000);
+                          const preferredIdx = (phase + hourSlot + 0) % present.length;
                           let activePrimary = null;
                           for (let i = 0; i < present.length; i++) {
                             const v = present[(preferredIdx + i) % present.length];
@@ -728,317 +764,337 @@ spec:
                     evm:
                       chainId: 143
                       getLogsAutoSplittingRangeThreshold: 1000
+                  # DISABLED: no WebSocket upstreams are loaded (server.webSocket.enabled is false).
+                  # Uncomment the ws-* entries below to re-enable WebSocket subscriptions.
                   # WebSocket upstreams for eth_subscribe. eRPC only serves subscriptions through
                   # an upstream whose endpoint is ws://|wss:// (GetWsUpstreams), and the vendors
                   # above generate HTTP-only endpoints, so the Alchemy and dRPC WS twins are explicit here.
                   # `ignoreMethods: ["*"]` keeps them out of normal request routing: the https
                   # vendor fallback above is unchanged, they serve subscriptions only.
-                  - id: ws-alchemy-999
-                    endpoint: 'wss://hyperliquid-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 999
-                  - id: ws-alchemy-998
-                    endpoint: 'wss://hyperliquid-testnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 998
-                  - id: ws-alchemy-42161
-                    endpoint: 'wss://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 42161
-                  - id: ws-alchemy-8453
-                    endpoint: 'wss://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 8453
-                  - id: ws-alchemy-84532
-                    endpoint: 'wss://base-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 84532
-                  - id: ws-alchemy-43114
-                    endpoint: 'wss://avax-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 43114
-                  - id: ws-alchemy-196
-                    endpoint: 'wss://xlayer-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 196
-                  - id: ws-alchemy-5042
-                    endpoint: 'wss://arc-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 5042
-                  # 98866 (Plume): Alchemy is auto-generated for this network; confirm the WS
-                  # host for the account before relying on it.
+                  # - id: ws-alchemy-999
+                  # endpoint: 'wss://hyperliquid-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 999
+                  # - id: ws-alchemy-998
+                  # endpoint: 'wss://hyperliquid-testnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 998
+                  # - id: ws-alchemy-42161
+                  # endpoint: 'wss://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 42161
+                  # - id: ws-alchemy-8453
+                  # endpoint: 'wss://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 8453
+                  # - id: ws-alchemy-84532
+                  # endpoint: 'wss://base-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 84532
+                  # - id: ws-alchemy-43114
+                  # endpoint: 'wss://avax-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 43114
+                  # - id: ws-alchemy-196
+                  # endpoint: 'wss://xlayer-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 196
+                  # - id: ws-alchemy-5042
+                  # endpoint: 'wss://arc-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 5042
+                  # 98866 (Plume): Alchemy does not serve Plume, so there is no ws-alchemy
+                  # twin. Plume WS, if enabled, relies on the dRPC twin below.
                   # dRPC WS twins (lb.drpc.live, path style). Alchemy + dRPC give subscription
                   # failover across two vendors. QuickNode is omitted: its per-chain endpoint is
                   # fetched dynamically from QuickNode's API, so no static wss:// URL exists here.
-                  - id: ws-drpc-998
-                    endpoint: 'wss://lb.drpc.live/hyperliquid-testnet/${DRPC_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 998
-                  - id: ws-drpc-42161
-                    endpoint: 'wss://lb.drpc.live/arbitrum/${DRPC_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 42161
-                  - id: ws-drpc-8453
-                    endpoint: 'wss://lb.drpc.live/base/${DRPC_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 8453
-                  - id: ws-drpc-84532
-                    endpoint: 'wss://lb.drpc.live/base-sepolia/${DRPC_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 84532
-                  - id: ws-drpc-43114
-                    endpoint: 'wss://lb.drpc.live/avalanche/${DRPC_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 43114
-                  - id: ws-drpc-196
-                    endpoint: 'wss://lb.drpc.live/xlayer/${DRPC_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 196
-                  - id: ws-drpc-98866
-                    endpoint: 'wss://lb.drpc.live/plume/${DRPC_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 98866
-                  - id: ws-drpc-5042
-                    endpoint: 'wss://lb.drpc.live/arc/${DRPC_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 5042
+                  # - id: ws-drpc-998
+                  # endpoint: 'wss://lb.drpc.live/hyperliquid-testnet/${DRPC_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 998
+                  # - id: ws-drpc-42161
+                  # endpoint: 'wss://lb.drpc.live/arbitrum/${DRPC_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 42161
+                  # - id: ws-drpc-8453
+                  # endpoint: 'wss://lb.drpc.live/base/${DRPC_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 8453
+                  # - id: ws-drpc-84532
+                  # endpoint: 'wss://lb.drpc.live/base-sepolia/${DRPC_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 84532
+                  # - id: ws-drpc-43114
+                  # endpoint: 'wss://lb.drpc.live/avalanche/${DRPC_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 43114
+                  # - id: ws-drpc-196
+                  # endpoint: 'wss://lb.drpc.live/xlayer/${DRPC_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 196
+                  # - id: ws-drpc-98866
+                  # endpoint: 'wss://lb.drpc.live/plume/${DRPC_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 98866
+                  # - id: ws-drpc-5042
+                  # endpoint: 'wss://lb.drpc.live/arc/${DRPC_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 5042
                   # WS twins for the chains only auto-generated by the providers above
                   # (1,10,56,143,1672,11155111,421614). Same subscription-only rule.
-                  - id: ws-alchemy-1
-                    endpoint: 'wss://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 1
-                  - id: ws-alchemy-10
-                    endpoint: 'wss://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 10
-                  - id: ws-alchemy-56
-                    endpoint: 'wss://bnb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 56
-                  - id: ws-alchemy-143
-                    endpoint: 'wss://monad-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 143
-                  - id: ws-alchemy-11155111
-                    endpoint: 'wss://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 11155111
-                  - id: ws-alchemy-421614
-                    endpoint: 'wss://arb-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 421614
-                  - id: ws-drpc-1
-                    endpoint: 'wss://lb.drpc.live/ethereum/${DRPC_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 1
-                  - id: ws-drpc-10
-                    endpoint: 'wss://lb.drpc.live/optimism/${DRPC_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 10
-                  - id: ws-drpc-56
-                    endpoint: 'wss://lb.drpc.live/bsc/${DRPC_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 56
-                  - id: ws-drpc-143
-                    endpoint: 'wss://lb.drpc.live/monad-mainnet/${DRPC_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 143
-                  - id: ws-drpc-1672
-                    endpoint: 'wss://lb.drpc.live/pharos/${DRPC_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 1672
-                  - id: ws-drpc-11155111
-                    endpoint: 'wss://lb.drpc.live/sepolia/${DRPC_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 11155111
-                  - id: ws-drpc-421614
-                    endpoint: 'wss://lb.drpc.live/arbitrum-sepolia/${DRPC_API_KEY}'
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 421614
+                  # - id: ws-alchemy-1
+                  # endpoint: 'wss://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 1
+                  # - id: ws-alchemy-10
+                  # endpoint: 'wss://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 10
+                  # - id: ws-alchemy-56
+                  # endpoint: 'wss://bnb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 56
+                  # - id: ws-alchemy-143
+                  # endpoint: 'wss://monad-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 143
+                  # - id: ws-alchemy-11155111
+                  # endpoint: 'wss://eth-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 11155111
+                  # - id: ws-alchemy-421614
+                  # endpoint: 'wss://arb-sepolia.g.alchemy.com/v2/${ALCHEMY_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 421614
+                  # - id: ws-drpc-1
+                  # endpoint: 'wss://lb.drpc.live/ethereum/${DRPC_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 1
+                  # - id: ws-drpc-10
+                  # endpoint: 'wss://lb.drpc.live/optimism/${DRPC_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 10
+                  # - id: ws-drpc-56
+                  # endpoint: 'wss://lb.drpc.live/bsc/${DRPC_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 56
+                  # - id: ws-drpc-143
+                  # endpoint: 'wss://lb.drpc.live/monad-mainnet/${DRPC_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 143
+                  # - id: ws-drpc-1672
+                  # endpoint: 'wss://lb.drpc.live/pharos/${DRPC_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 1672
+                  # - id: ws-drpc-11155111
+                  # endpoint: 'wss://lb.drpc.live/sepolia/${DRPC_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 11155111
+                  # - id: ws-drpc-421614
+                  # endpoint: 'wss://lb.drpc.live/arbitrum-sepolia/${DRPC_API_KEY}'
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 421614
                   # QuickNode multichain endpoint: one WS twin per chain, endpoint
                   # wss://${QUICKNODE_WSS_NAME}.<quicknode-network-slug>.quiknode.pro/${QUICKNODE_WSS_KEY}
                   # (NAME=the endpoint name, KEY=the token). Subscription-only. Requires
                   # QUICKNODE_WSS_NAME + QUICKNODE_WSS_KEY in the eRPC secret; verify each chain's
                   # QuickNode network slug, and drop any chain the endpoint does not serve.
-                  - id: ws-quicknode-1
-                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.ethereum-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
-                    rateLimitBudget: quicknode-global
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 1
-                  - id: ws-quicknode-10
-                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.optimism-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
-                    rateLimitBudget: quicknode-global
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 10
-                  - id: ws-quicknode-56
-                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.bsc-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
-                    rateLimitBudget: quicknode-global
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 56
-                  - id: ws-quicknode-143
-                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.monad-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
-                    rateLimitBudget: quicknode-global
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 143
-                  - id: ws-quicknode-196
-                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.xlayer-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
-                    rateLimitBudget: quicknode-global
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 196
-                  - id: ws-quicknode-998
-                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.hyperliquid-testnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
-                    rateLimitBudget: quicknode-global
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 998
-                  - id: ws-quicknode-999
-                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.hyperliquid-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
-                    rateLimitBudget: quicknode-global
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 999
-                  - id: ws-quicknode-1672
-                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.pharos-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
-                    rateLimitBudget: quicknode-global
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 1672
-                  - id: ws-quicknode-5042
-                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.arc-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
-                    rateLimitBudget: quicknode-global
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 5042
-                  - id: ws-quicknode-8453
-                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.base-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
-                    rateLimitBudget: quicknode-global
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 8453
-                  - id: ws-quicknode-84532
-                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.base-sepolia.quiknode.pro/${QUICKNODE_WSS_KEY}'
-                    rateLimitBudget: quicknode-global
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 84532
-                  - id: ws-quicknode-42161
-                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.arbitrum-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
-                    rateLimitBudget: quicknode-global
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 42161
-                  - id: ws-quicknode-43114
-                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.avalanche-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
-                    rateLimitBudget: quicknode-global
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 43114
-                  - id: ws-quicknode-98866
-                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.plume-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
-                    rateLimitBudget: quicknode-global
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 98866
-                  - id: ws-quicknode-11155111
-                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.ethereum-sepolia.quiknode.pro/${QUICKNODE_WSS_KEY}'
-                    rateLimitBudget: quicknode-global
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 11155111
-                  - id: ws-quicknode-421614
-                    endpoint: 'wss://${QUICKNODE_WSS_NAME}.arbitrum-sepolia.quiknode.pro/${QUICKNODE_WSS_KEY}'
-                    rateLimitBudget: quicknode-global
-                    ignoreMethods: ["*"]
-                    allowMethods: ["eth_subscribe", "eth_unsubscribe"]
-                    evm:
-                      chainId: 421614
+                  # - id: ws-quicknode-1
+                  # endpoint: 'wss://${QUICKNODE_WSS_NAME}.ethereum-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                  # rateLimitBudget: quicknode-global
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 1
+                  # - id: ws-quicknode-10
+                  # endpoint: 'wss://${QUICKNODE_WSS_NAME}.optimism-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                  # rateLimitBudget: quicknode-global
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 10
+                  # - id: ws-quicknode-56
+                  # endpoint: 'wss://${QUICKNODE_WSS_NAME}.bsc-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                  # rateLimitBudget: quicknode-global
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 56
+                  # - id: ws-quicknode-143
+                  # endpoint: 'wss://${QUICKNODE_WSS_NAME}.monad-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                  # rateLimitBudget: quicknode-global
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 143
+                  # - id: ws-quicknode-196
+                  # endpoint: 'wss://${QUICKNODE_WSS_NAME}.xlayer-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                  # rateLimitBudget: quicknode-global
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 196
+                  # - id: ws-quicknode-998
+                  # endpoint: 'wss://${QUICKNODE_WSS_NAME}.hyperliquid-testnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                  # rateLimitBudget: quicknode-global
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 998
+                  # - id: ws-quicknode-999
+                  # endpoint: 'wss://${QUICKNODE_WSS_NAME}.hyperliquid-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                  # rateLimitBudget: quicknode-global
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 999
+                  # - id: ws-quicknode-1672
+                  # endpoint: 'wss://${QUICKNODE_WSS_NAME}.pharos-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                  # rateLimitBudget: quicknode-global
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 1672
+                  # - id: ws-quicknode-5042
+                  # endpoint: 'wss://${QUICKNODE_WSS_NAME}.arc-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                  # rateLimitBudget: quicknode-global
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 5042
+                  # - id: ws-quicknode-8453
+                  # endpoint: 'wss://${QUICKNODE_WSS_NAME}.base-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                  # rateLimitBudget: quicknode-global
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 8453
+                  # - id: ws-quicknode-84532
+                  # endpoint: 'wss://${QUICKNODE_WSS_NAME}.base-sepolia.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                  # rateLimitBudget: quicknode-global
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 84532
+                  # - id: ws-quicknode-42161
+                  # endpoint: 'wss://${QUICKNODE_WSS_NAME}.arbitrum-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                  # rateLimitBudget: quicknode-global
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 42161
+                  # - id: ws-quicknode-43114
+                  # endpoint: 'wss://${QUICKNODE_WSS_NAME}.avalanche-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                  # rateLimitBudget: quicknode-global
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 43114
+                  # - id: ws-quicknode-98866
+                  # endpoint: 'wss://${QUICKNODE_WSS_NAME}.plume-mainnet.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                  # rateLimitBudget: quicknode-global
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 98866
+                  # - id: ws-quicknode-11155111
+                  # endpoint: 'wss://${QUICKNODE_WSS_NAME}.ethereum-sepolia.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                  # rateLimitBudget: quicknode-global
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 11155111
+                  # - id: ws-quicknode-421614
+                  # endpoint: 'wss://${QUICKNODE_WSS_NAME}.arbitrum-sepolia.quiknode.pro/${QUICKNODE_WSS_KEY}'
+                  # rateLimitBudget: quicknode-global
+                  # ignoreMethods: ["*"]
+                  # allowMethods: ["eth_subscribe", "eth_unsubscribe"]
+                  # evm:
+                  # chainId: 421614
                 providers:
                   - vendor: quicknode
                     settings:
                       apiKey: ${QUICKNODE_MASTER_API_KEY}
-                    ignoreNetworks:
-                      - evm:999
-                      - evm:998
-                      - evm:143
+                    # onlyNetworks reproduces the previous per-vendor generation
+                    # set: the used chains this vendor generated, minus the chains
+                    # with explicit upstreams. Skips the vendor support check.
+                    # 98866 is omitted: QuickNode does not serve Plume.
+                    onlyNetworks:
+                      - evm:1
+                      - evm:10
+                      - evm:56
+                      - evm:196
+                      - evm:1672
+                      - evm:5042
+                      - evm:8453
+                      - evm:84532
+                      - evm:42161
+                      - evm:43114
+                      - evm:11155111
+                      - evm:421614
+                      # Robinhood Chain and Linea; QuickNode serves both over HTTPS/WSS,
+                      # with archive access on Linea mainnet. ADI is not added: QuickNode
+                      # does not list it.
+                      - evm:4663
+                      - evm:59144
                     overrides:
                       # One non-overlapping key: provider override first-match is Go map
                       # order, so mixing "evm:*" with a specific key is nondeterministic
@@ -1058,11 +1114,27 @@ spec:
                   - vendor: alchemy
                     settings:
                       apiKey: ${ALCHEMY_API_KEY}
-                    ignoreNetworks:
-                      - evm:999
-                      - evm:998
-                      - evm:5042
-                      - evm:143
+                    # onlyNetworks reproduces the previous per-vendor generation
+                    # set: the used chains this vendor generated, minus the chains
+                    # with explicit upstreams. Skips the vendor support check.
+                    # 98866 is omitted: Alchemy does not serve Plume.
+                    onlyNetworks:
+                      - evm:1
+                      - evm:10
+                      - evm:56
+                      - evm:196
+                      - evm:1672
+                      - evm:8453
+                      - evm:84532
+                      - evm:42161
+                      - evm:43114
+                      - evm:11155111
+                      - evm:421614
+                      # Selected mainnet chains with no other generated upstream. Alchemy
+                      # serves Robinhood Chain, Linea and ADI.
+                      - evm:4663
+                      - evm:59144
+                      - evm:36900
                     overrides:
                       "evm:*":
                         rateLimitBudget: alchemy-global
@@ -1079,10 +1151,27 @@ spec:
                   - vendor: drpc
                     settings:
                       apiKey: ${DRPC_API_KEY}
-                    ignoreNetworks:
-                      - evm:999
-                      - evm:5042
-                      - evm:143
+                    # onlyNetworks reproduces the previous per-vendor generation
+                    # set: the used chains this vendor generated, minus the chains
+                    # with explicit upstreams. Skips the vendor support check.
+                    onlyNetworks:
+                      - evm:1
+                      - evm:10
+                      - evm:56
+                      - evm:196
+                      - evm:1672
+                      - evm:8453
+                      - evm:84532
+                      - evm:98866
+                      - evm:42161
+                      - evm:43114
+                      - evm:11155111
+                      - evm:421614
+                      # Selected mainnet chains with no other generated upstream. dRPC
+                      # serves Robinhood Chain, Linea and ADI.
+                      - evm:4663
+                      - evm:59144
+                      - evm:36900
                     overrides:
                       "evm:*":
                         rateLimitBudget: drpc-global

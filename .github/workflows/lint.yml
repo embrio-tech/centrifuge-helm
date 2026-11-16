@@ -7,6 +7,8 @@ on:
   pull_request:
     paths:
       - charts/**
+      - examples/**
+      - scripts/erpc-rotation.test.mjs
       - scripts/lint-chart.sh
       - scripts/fetch-chart-dependencies.sh
       - .github/workflows/lint.yml
@@ -54,6 +56,9 @@ jobs:
           set -euo pipefail
           node --test scripts/github-transition-report.test.mjs
           ./scripts/check-github-transition-report-drift.sh
+
+      - name: eRPC rotation tests
+        run: node --test scripts/erpc-rotation.test.mjs
 
       - name: Lint
         if: steps.changed.outputs.charts != ''
