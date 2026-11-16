@@ -251,16 +251,16 @@ erpc:
   resources:
     requests:
       cpu: "500m"
-      memory: "2Gi"
+      memory: "3Gi"
     limits:
       cpu: "2"
-      memory: "2Gi"
+      memory: "3Gi"
 
   env:
     - name: GOGC
       value: "40"
     - name: GOMEMLIMIT
-      value: "1900MiB"
+      value: "2560MiB"
 
   service:
     type: ClusterIP
