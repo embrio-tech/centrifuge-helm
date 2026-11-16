@@ -18,6 +18,11 @@ erpc:
   lineLabel: v0-5
   image:
     tag: "0.5.0"
+  metrics:
+    serviceMonitor:
+      enabled: true
+      labels:
+        release: kube-prometheus-stack
   database:
     evmJsonRpcCache:
       enabled: true
